@@ -105,43 +105,114 @@ The controller will operate under a principle of least privilege. It requires `g
 
 **Goal:** A stable Go binary that can connect to a cluster and react to basic pod state changes.
 
-| Task                          | Sub-tasks                                                                 | Definition of Done (DoD)                                                                |
-| :---------------------------- | :------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------- |
-| **1.1 Project Init**          | • Init Go modules<br>• Scaffold with `kubebuilder`                        | `main.go` runs and connects to a local `kind` cluster without errors.                   |
-| **1.2 RBAC Setup**            | • Define ClusterRoles/RoleBindings<br>• Generate YAML manifests           | Controller pod starts and its logs show successful watches on pods and deployments (no 403s). |
-| **1.3 Basic Reconcile Loop**  | • Implement `Reconcile` func for Pods<br>• Filter for non-Running states  | Terminal logs show "Pod [Name] entered CrashLoopBackOff" in real-time.                   |
-| **1.4 Controller Config**     | • Create `ConfigMap` structure<br>• Implement loading logic via Viper      | Controller loads settings (log level, debounce TTL) from a mounted `ConfigMap` on startup. |
+#### ✅ 1.1 Project Init
+**DoD:** `main.go` runs and connects to a local `kind` cluster without errors.
+*   ✅ Init Go modules
+*   ✅ Scaffold with `kubebuilder`
+
+#### ⬜ 1.2 RBAC Setup
+
+**DoD:** Controller pod starts and its logs show successful watches on pods and deployments (no 403s).
+
+- ⬜ Define ClusterRoles/RoleBindings
+- ⬜ Generate YAML manifests
+
+#### ⬜ 1.3 Basic Reconcile Loop
+
+**DoD:** Terminal logs show "Pod [Name] entered CrashLoopBackOff" in real-time.
+
+- ⬜ Implement `Reconcile` func for Pods
+- ⬜ Filter for non-Running states
+
+#### ⬜ 1.4 Controller Config
+
+**DoD:** Controller loads settings (log level, debounce TTL) from a mounted `ConfigMap` on startup.
+
+- ⬜ Create `ConfigMap` structure
+- ⬜ Implement loading logic via Viper
 
 ### Phase 2: The Context Harvester
 
 **Goal:** Transform raw failure signals into high-fidelity, redacted diagnostic packages.
 
-| Task                        | Sub-tasks                                                                   | Definition of Done (DoD)                                                              |
-| :-------------------------- | :-------------------------------------------------------------------------- | :------------------------------------------------------------------------------------ |
-| **2.1 Log Aggregator**      | • Implement `GetLogs()` via `client-go`<br>• Parameterize `tailLines`         | A unit-tested function returns the last 200 lines of logs from a specified container. |
-| **2.2 Manifest Parser**     | • Fetch and serialize Pod/Deployment specs<br>• Implement Redaction engine     | A JSON representation of a pod is generated with all env vars matching `*_SECRET` masked as `[REDACTED]`. |
-| **2.3 Intelligence Cache**  | • Integrate `go-cache` library<br>• Implement debouncing logic in reconciler | A unit test proves that 10 reconciliation triggers in 1 minute result in only 1 harvest action. |
+#### ⬜ 2.1 Log Aggregator
+
+**DoD:** A unit-tested function returns the last 200 lines of logs from a specified container.
+
+- ⬜ Implement `GetLogs()` via `client-go`
+- ⬜ Parameterize `tailLines`
+
+#### ⬜ 2.2 Manifest Parser
+
+**DoD:** A JSON representation of a pod is generated with all env vars matching `*_SECRET` masked as `[REDACTED]`.
+
+- ⬜ Fetch and serialize Pod/Deployment specs
+- ⬜ Implement Redaction engine
+
+#### ⬜ 2.3 Intelligence Cache
+
+**DoD:** A unit test proves that 10 reconciliation triggers in 1 minute result in only 1 harvest action.
+
+- ⬜ Integrate `go-cache` library
+- ⬜ Implement debouncing logic in reconciler
 
 ### Phase 3: The Communication Bridge (gRPC)
 
 **Goal:** Establish high-speed, typed, and resilient integration with the .NET Orchestrator.
 
-| Task                     | Sub-tasks                                                                     | Definition of Done (DoD)                                                                     |
-| :----------------------- | :---------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------- |
-| **3.1 Contract (Proto)** | • Define `IncidentContext` message<br>• Generate Go/C# bindings with `protoc`  | A `kube-mind.proto` file exists and compiles successfully for both Go and C# projects.       |
-| **3.2 gRPC Client**      | • Implement client with mTLS & reconnect backoff<br>• Add health checks        | The Go controller successfully sends a test message to a mock .NET server and auto-reconnects if the server is restarted. |
-| **3.3 Event Streaming**  | • Integrate Harvester output with gRPC client<br>• Stream full context payloads | A test in `kind` shows a pod crash resulting in the .NET server receiving a message containing logs, redacted YAML, and failure metadata. |
+#### ⬜ 3.1 Contract (Proto)
+
+**DoD:** A `kube-mind.proto` file exists and compiles successfully for both Go and C# projects.
+
+- ⬜ Define `IncidentContext` message
+- ⬜ Generate Go/C# bindings with `protoc`
+
+#### ⬜ 3.2 gRPC Client
+
+**DoD:** The Go controller successfully sends a test message to a mock .NET server and auto-reconnects if the server is restarted.
+
+- ⬜ Implement client with mTLS & reconnect backoff
+- ⬜ Add health checks
+
+#### ⬜ 3.3 Event Streaming
+
+**DoD:** A test in `kind` shows a pod crash resulting in the .NET server receiving a message containing logs, redacted YAML, and failure metadata.
+
+- ⬜ Integrate Harvester output with gRPC client
+- ⬜ Stream full context payloads
 
 ### Phase 4: Production Readiness & Ops
 
 **Goal:** A secure, efficient, and deployable production artifact.
 
-| Task                    | Sub-tasks                                                              | Definition of Done (DoD)                                                                  |
-| :---------------------- | :--------------------------------------------------------------------- | :---------------------------------------------------------------------------------------- |
-| **4.1 Dockerization**   | • Multi-stage Distroless build<br>• Run as non-root user<br>• Add liveness/readiness probes | Final Docker image is < 50MB, passes `trivy` scan with no critical CVEs, and runs successfully in the cluster. |
-| **4.2 Helm Chart**      | • Create Chart templates for all resources<br>• Parameterize `values.yaml` | `helm install km-observer .` successfully deploys the controller, RBAC, and ConfigMap. |
-| **4.3 GitOps Sync**     | • Define ArgoCD Application manifest<br>• Add to App-of-Apps repository    | The controller is visible, healthy, and synced in the ArgoCD dashboard.                   |
-| **4.4 Monitoring**      | • Expose Prometheus metrics (`/metrics`)<br>• Implement structured logging (`zap`) | A Grafana dashboard can query reconciliation latency and error rates from the controller. |
+#### ⬜ 4.1 Dockerization
+
+**DoD:** Final Docker image is < 50MB, passes `trivy` scan with no critical CVEs, and runs successfully in the cluster.
+
+- ⬜ Multi-stage Distroless build
+- ⬜ Run as non-root user
+- ⬜ Add liveness/readiness probes
+
+#### ⬜ 4.2 Helm Chart
+
+**DoD:** `helm install km-observer .` successfully deploys the controller, RBAC, and ConfigMap.
+
+- ⬜ Create Chart templates for all resources
+- ⬜ Parameterize `values.yaml`
+
+#### ⬜ 4.3 GitOps Sync
+
+**DoD:** The controller is visible, healthy, and synced in the ArgoCD dashboard.
+
+- ⬜ Define ArgoCD Application manifest
+- ⬜ Add to App-of-Apps repository
+
+#### ⬜ 4.4 Monitoring
+
+**DoD:** A Grafana dashboard can query reconciliation latency and error rates from the controller.
+
+- ⬜ Expose Prometheus metrics (`/metrics`)
+- ⬜ Implement structured logging (`zap`)
 
 ---
 

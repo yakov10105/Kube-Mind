@@ -20,6 +20,7 @@ In modern cloud-native ecosystems, the end-to-end lifecycle of an incident—fro
 ### 1.3. Our Mission
 
 We will create the **Kube-Mind Platform**, an AI-driven system that acts as the central nervous system for our Kubernetes infrastructure. It is composed of two primary subsystems:
+
 1.  **The Observer (Go):** A distributed "sensory network" of lightweight, efficient controllers that perform real-time failure detection and data harvesting directly within our clusters.
 2.  **The Brain (.NET):** A centralized "cognitive core" that uses AI orchestration to reason about the data it receives, learn from past incidents, and interact with our engineering ecosystem to execute solutions.
 
@@ -54,7 +55,7 @@ graph TD
         C -- Streams Thoughts --> G((UI / Real-time Log));
         C -- Notifies --> H((Slack / Teams));
     end
-    
+
     subgraph Engineering Ecosystem
         C -- Creates Pull Request --> I[Git Repository <br> (GitHub)];
         J[ArgoCD] -- Syncs --> A;
@@ -68,23 +69,25 @@ graph TD
 ### 2.2. Component Responsibilities
 
 #### **Kube-Mind Observer (Go Controller)**
+
 - **Role:** The "Senses." A distributed, lightweight, high-performance agent.
 - **Responsibilities:**
-    1.  **Watch:** Deployed as a Kubernetes controller, it maintains an efficient watch on cluster resources like `Pods` and `Deployments`.
-    2.  **Detect & Filter:** Identifies key failure states (`CrashLoopBackOff`, `OOMKilled`, etc.) and de-bounces flapping services.
-    3.  **Harvest:** Concurrently gathers deep context: logs, YAML manifests, and correlated Kubernetes events.
-    4.  **Redact:** Scrubs all sensitive data (secrets, tokens, keys) from the harvested context *before* transmission.
-    5.  **Transmit:** Streams a structured, secure `IncidentContext` payload to the Brain via gRPC.
+  1.  **Watch:** Deployed as a Kubernetes controller, it maintains an efficient watch on cluster resources like `Pods` and `Deployments`.
+  2.  **Detect & Filter:** Identifies key failure states (`CrashLoopBackOff`, `OOMKilled`, etc.) and de-bounces flapping services.
+  3.  **Harvest:** Concurrently gathers deep context: logs, YAML manifests, and correlated Kubernetes events.
+  4.  **Redact:** Scrubs all sensitive data (secrets, tokens, keys) from the harvested context _before_ transmission.
+  5.  **Transmit:** Streams a structured, secure `IncidentContext` payload to the Brain via gRPC.
 - **Core Tenets:** Read-only, low-latency (<1s), minimal resource footprint, stateless.
 
 #### **Kube-Mind Brain (.NET Orchestrator)**
+
 - **Role:** The "Cognitive Core." A centralized, intelligent, decision-making service.
 - **Responsibilities:**
-    1.  **Ingest & Enrich:** Receives `IncidentContext` payloads. Enriches them with historical context from its long-term memory (Redis Vector DB).
-    2.  **Reason & Plan:** Uses an AI Orchestrator (Semantic Kernel) and a large language model (LLM) to analyze the failure and generate a step-by-step diagnostic plan.
-    3.  **Execute & Diagnose:** Invokes internal "skills" or "plugins" to execute the plan, gathering more evidence until a root cause is confirmed.
-    4.  **Remediate & Propose:** Formulates a fix and invokes a `GitOpsPlugin` to create a new branch in the appropriate Git repository and file a Pull Request with the code change and a detailed explanation.
-    5.  **Report & Stream:** Provides a transparent, real-time stream of its entire thought process to a user interface and structured logs.
+  1.  **Ingest & Enrich:** Receives `IncidentContext` payloads. Enriches them with historical context from its long-term memory (Redis Vector DB).
+  2.  **Reason & Plan:** Uses an AI Orchestrator (Semantic Kernel) and a large language model (LLM) to analyze the failure and generate a step-by-step diagnostic plan.
+  3.  **Execute & Diagnose:** Invokes internal "skills" or "plugins" to execute the plan, gathering more evidence until a root cause is confirmed.
+  4.  **Remediate & Propose:** Formulates a fix and invokes a `GitOpsPlugin` to create a new branch in the appropriate Git repository and file a Pull Request with the code change and a detailed explanation.
+  5.  **Report & Stream:** Provides a transparent, real-time stream of its entire thought process to a user interface and structured logs.
 - **Core Tenets:** GitOps-native (never writes to the cluster directly), explainable, secure, stateful.
 
 ---
@@ -93,12 +96,12 @@ graph TD
 
 This roadmap outlines the parallel development of both the Observer and the Brain, culminating in an integrated, end-to-end system.
 
-| Phase                                   | Key Observer Tasks (Go)                                        | Key Brain Tasks (.NET)                                           | Integrated DoD                                                                                                  |
-| :-------------------------------------- | :------------------------------------------------------------- | :--------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------- |
-| **P1: Foundation & First Signal**       | • Basic controller scaffolds.<br>• Detect pod crash.<br>• Send basic gRPC message. | • Basic gRPC server.<br>• Receive & log message.<br>• Setup Kernel/LLM health check. | **A pod crash in a `kind` cluster results in a "Hello World" log appearing in the Brain's console.**                |
-| **P2: Context & Early Cognition**       | • Harvest full context (logs, YAML).<br>• Implement redaction engine. | • Parse full gRPC payload.<br>• Implement basic diagnostic plugin.<br>• Setup Vector DB. | **A pod crash results in the Brain logging a structured root cause hypothesis (e.g., "OOMKilled") to the console.** |
-| **P3: Closing the Loop (MVP)**          | • Helm chart for deployment.<br>• High-availability (leader election). | • Implement `GitOpsPlugin`.<br>• Implement real-time UI streaming.<br>• Add Slack notifications. | **A pod crash results in a valid Pull Request being opened in a test repository with a basic explanation.**          |
-| **P4: Enterprise Readiness & Hardening** | • Advanced Prometheus metrics.<br>• Final image optimization.      | • Implement "Polycheck" safety guardrail.<br>• Implement cost controls.<br>• Harden security. | **The full system is deployed via GitOps, is highly available, secure, monitored, and ready for a pilot program.** |
+| Phase                                    | Key Observer Tasks (Go)                                                            | Key Brain Tasks (.NET)                                                                           | Integrated DoD                                                                                                      |
+| :--------------------------------------- | :--------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------ |
+| **P1: Foundation & First Signal**        | • Basic controller scaffolds.<br>• Detect pod crash.<br>• Send basic gRPC message. | • Basic gRPC server.<br>• Receive & log message.<br>• Setup Kernel/LLM health check.             | **A pod crash in a `kind` cluster results in a "Hello World" log appearing in the Brain's console.**                |
+| **P2: Context & Early Cognition**        | • Harvest full context (logs, YAML).<br>• Implement redaction engine.              | • Parse full gRPC payload.<br>• Implement basic diagnostic plugin.<br>• Setup Vector DB.         | **A pod crash results in the Brain logging a structured root cause hypothesis (e.g., "OOMKilled") to the console.** |
+| **P3: Closing the Loop (MVP)**           | • Helm chart for deployment.<br>• High-availability (leader election).             | • Implement `GitOpsPlugin`.<br>• Implement real-time UI streaming.<br>• Add Slack notifications. | **A pod crash results in a valid Pull Request being opened in a test repository with a basic explanation.**         |
+| **P4: Enterprise Readiness & Hardening** | • Advanced Prometheus metrics.<br>• Final image optimization.                      | • Implement "Polycheck" safety guardrail.<br>• Implement cost controls.<br>• Harden security.    | **The full system is deployed via GitOps, is highly available, secure, monitored, and ready for a pilot program.**  |
 
 ---
 
@@ -116,10 +119,10 @@ This roadmap outlines the parallel development of both the Observer and the Brai
 
 - **Primary Metric:** Mean Time to Repair (MTTR) Reduction. **Target: 50% reduction** for in-scope failures.
 - **Secondary Metrics:**
-    - **Automation Rate:** % of incidents with an automatically generated, correct PR. **Target: >70%**.
-    - **PR Merge Confidence:** % of AI-generated PRs merged by engineers without significant changes. **Target: >85%**.
-    - **User Trust Score:** A qualitative score gathered from SREs on their confidence in the system's recommendations.
-    - **Cost-per-Remediation:** Average LLM/compute cost to resolve one incident, to be tracked and optimized.
+  - **Automation Rate:** % of incidents with an automatically generated, correct PR. **Target: >70%**.
+  - **PR Merge Confidence:** % of AI-generated PRs merged by engineers without significant changes. **Target: >85%**.
+  - **User Trust Score:** A qualitative score gathered from SREs on their confidence in the system's recommendations.
+  - **Cost-per-Remediation:** Average LLM/compute cost to resolve one incident, to be tracked and optimized.
 
 ---
 
