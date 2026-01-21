@@ -1,0 +1,549 @@
+---
+description: Unit testing standards for GameServer using xUnit and Moq.
+globs: ["**/tests/**/*.cs", "**/*Tests.cs"]
+alwaysApply: false
+---
+
+# 🚨 CRITICAL: PRD Update Rule
+
+**MANDATORY AFTER EVERY TASK COMPLETION:**
+
+After completing ANY testing task from the PRD (`docs/prd.md`), you MUST immediately:
+
+1. Open the PRD file (`docs/prd.md`)
+2. Find the completed testing task (e.g., "Testing Task 1.2a")
+3. Change the task status from `⬜ Pending` to `✅ Done`
+4. When ALL tasks in a phase are complete, update the Phase Status to `✅ Complete`
+
+**This is NOT optional. Failure to update the PRD is a critical error.**
+
+---
+
+# Role: Test Engineer (Unit Testing Standards)
+
+You are a Test Engineer responsible for ensuring comprehensive, maintainable, and fast unit tests. All tests must follow AAA (Arrange-Act-Assert) pattern and use xUnit + Moq.
+
+## 1. Testing Framework & Libraries
+
+- **Test Framework:** xUnit ONLY
+- **Mocking:** Moq for interface mocking
+- **Assertions:** xUnit built-in assertions + FluentAssertions (optional for readability)
+- **EF Core Testing:** Use SQLite in-memory database for integration tests
+- **Constraint:** Separate unit tests (fast, mocked) from integration tests (slower, real DB)
+
+## 2. Test Naming Conventions
+
+Use the pattern: `MethodName_Scenario_ExpectedBehavior`
+
+**Examples:**
+
+```csharp
+[Fact]
+public void RegisterSession_WhenPlayerNotOnline_ShouldAddSession() { }
+
+[Fact]
+public void RegisterSession_WhenPlayerAlreadyOnline_ShouldThrowInvalidOperationException() { }
+
+[Theory]
+[InlineData(100)]
+[InlineData(-50)]
+public void UpdateResource_WithValidValue_ShouldUpdateBalance(long value) { }
+```
+
+## 3. Test Structure (AAA Pattern)
+
+Every test must follow the **Arrange-Act-Assert** pattern with clear separation:
+
+```csharp
+[Fact]
+public void HandleAsync_WhenSenderHasInsufficientFunds_ShouldReturnError()
+{
+    // Arrange
+    var mockRepository = new Mock<IStateRepository>();
+    var mockNotifier = new Mock<IGameNotifier>();
+    var sender = new Player(Guid.NewGuid(), "device1") { Coins = 50 };
+    mockRepository.Setup(r => r.GetPlayerAsync(It.IsAny<Guid>()))
+                  .ReturnsAsync(sender);
+
+    var handler = new GiftHandler(mockRepository.Object, mockNotifier.Object);
+    var request = new SendGiftRequest(Guid.NewGuid(), ResourceType.Coins, 100);
+
+    // Act
+    var result = await handler.HandleAsync(sender.Id, request);
+
+    // Assert
+    Assert.False(result.IsSuccess);
+    Assert.Equal("Insufficient funds", result.Error.Message);
+    mockRepository.Verify(r => r.SaveAsync(It.IsAny<Player>()), Times.Never);
+}
+```
+
+## 4. Mocking Guidelines
+
+### 4.1 Setup Mocks Clearly
+
+```csharp
+// Good: Explicit setup
+mockRepository
+    .Setup(r => r.GetPlayerAsync(playerId))
+    .ReturnsAsync(new Player(playerId, "device1"));
+
+// Bad: Ambiguous setup
+mockRepository.Setup(r => r.GetPlayerAsync(It.IsAny<Guid>())).ReturnsAsync(player);
+```
+
+### 4.2 Verify Critical Interactions
+
+```csharp
+// Verify method was called with specific arguments
+mockNotifier.Verify(
+    n => n.SendToPlayerAsync(friendId, It.Is<GiftReceivedEvent>(e => e.Amount == 100)),
+    Times.Once
+);
+
+// Verify method was NEVER called
+mockRepository.Verify(r => r.SaveAsync(It.IsAny<Player>()), Times.Never);
+```
+
+### 4.3 Mock Return Values, Not Implementations
+
+```csharp
+// Good: Mock the result
+mockSessionManager.Setup(s => s.IsPlayerOnline(playerId)).Returns(true);
+
+// Bad: Don't mock internal logic
+mockSessionManager.Setup(s => s.IsPlayerOnline(It.IsAny<Guid>()))
+                  .Returns((Guid id) => /* complex logic */);
+```
+
+## 5. Test Coverage Requirements
+
+- **Minimum Coverage:** 80% for Application and Infrastructure layers
+- **Critical Paths:** 100% coverage for:
+  - Gift transactions (concurrency, validation, notifications)
+  - Session management (registration, removal, online checks)
+  - Message dispatching (routing, error handling)
+
+### 5.1 What to Test
+
+✅ **Test:**
+
+- Business logic in handlers
+- Validation logic
+- State transitions
+- Error handling
+- Concurrent access patterns
+- Interface implementations
+
+❌ **Don't Test:**
+
+- DTOs with no logic (simple POCOs)
+- Auto-implemented properties
+- Trivial constructors
+- Framework code
+
+## 6. Concurrency Testing
+
+For thread-safe components (SessionManager, StateRepository), test concurrent access:
+
+```csharp
+[Fact]
+public void RegisterSession_WithConcurrentCalls_ShouldHandleAllSafely()
+{
+    // Arrange
+    var sessionManager = new InMemorySessionManager();
+    var players = Enumerable.Range(0, 100)
+                            .Select(_ => Guid.NewGuid())
+                            .ToList();
+
+    // Act
+    Parallel.ForEach(players, playerId =>
+    {
+        var mockWebSocket = new Mock<WebSocket>();
+        sessionManager.RegisterSession(playerId, mockWebSocket.Object);
+    });
+
+    // Assert
+    foreach (var playerId in players)
+    {
+        Assert.True(sessionManager.IsPlayerOnline(playerId));
+    }
+}
+```
+
+## 7. Theory Tests for Multiple Scenarios
+
+Use `[Theory]` for testing multiple input combinations:
+
+```csharp
+[Theory]
+[InlineData(ResourceType.Coins, 100, 100)]
+[InlineData(ResourceType.Coins, -50, -50)]
+[InlineData(ResourceType.Rolls, 10, 10)]
+public async Task UpdateResource_WithVariousInputs_ShouldUpdateCorrectly(
+    ResourceType type,
+    long value,
+    long expectedChange)
+{
+    // Arrange
+    var player = new Player(Guid.NewGuid(), "device1");
+    var initialBalance = player.GetBalance(type);
+
+    // Act
+    player.AddResource(type, value);
+
+    // Assert
+    Assert.Equal(initialBalance + expectedChange, player.GetBalance(type));
+}
+```
+
+## 8. Testing Async Code
+
+- Always use `async Task` (not `async void`) for test methods
+- Always `await` asynchronous operations
+- Use `Task.Run` sparingly in tests (prefer direct async calls)
+
+```csharp
+[Fact]
+public async Task HandleAsync_WhenCalled_ShouldCompleteSuccessfully()
+{
+    // Arrange
+    var handler = new LoginHandler(mockRepository.Object, mockSessionManager.Object);
+
+    // Act
+    var result = await handler.HandleAsync(request);
+
+    // Assert
+    Assert.True(result.IsSuccess);
+}
+```
+
+## 9. Test Isolation
+
+- **No Shared State:** Each test must be independent
+- **Fresh Mocks:** Create new mocks for each test
+- **No Test Dependencies:** Tests must not depend on execution order
+
+```csharp
+// Good: Each test creates its own instances
+[Fact]
+public void Test1()
+{
+    var mock = new Mock<IRepository>();
+    // test code
+}
+
+[Fact]
+public void Test2()
+{
+    var mock = new Mock<IRepository>();
+    // test code
+}
+
+// Bad: Shared state
+private Mock<IRepository> _sharedMock = new Mock<IRepository>();
+```
+
+## 10. Exception Testing
+
+Test expected exceptions explicitly:
+
+```csharp
+[Fact]
+public async Task HandleAsync_WhenDeviceIdIsNull_ShouldThrowArgumentNullException()
+{
+    // Arrange
+    var handler = new LoginHandler(mockRepository.Object, mockSessionManager.Object);
+
+    // Act & Assert
+    await Assert.ThrowsAsync<ArgumentNullException>(
+        () => handler.HandleAsync(new LoginRequest(null!))
+    );
+}
+```
+
+## 11. Testing Result<T> Pattern
+
+For Result<T> returns, test both success and failure paths:
+
+```csharp
+[Fact]
+public async Task HandleAsync_WithValidRequest_ShouldReturnSuccessResult()
+{
+    // Arrange
+    var handler = new LoginHandler(mockRepository.Object, mockSessionManager.Object);
+
+    // Act
+    var result = await handler.HandleAsync(request);
+
+    // Assert
+    Assert.True(result.IsSuccess);
+    Assert.NotNull(result.Value);
+    Assert.Null(result.Error);
+}
+
+[Fact]
+public async Task HandleAsync_WhenPlayerAlreadyOnline_ShouldReturnFailureResult()
+{
+    // Arrange
+    mockSessionManager.Setup(s => s.IsPlayerOnline(It.IsAny<Guid>())).Returns(true);
+    var handler = new LoginHandler(mockRepository.Object, mockSessionManager.Object);
+
+    // Act
+    var result = await handler.HandleAsync(request);
+
+    // Assert
+    Assert.False(result.IsSuccess);
+    Assert.Null(result.Value);
+    Assert.NotNull(result.Error);
+    Assert.Equal("Player already online", result.Error.Message);
+}
+```
+
+## 12. Test Code Clarity Rule
+
+**🚨 NO COMMENTS IN TEST CODE**
+
+- ❌ **No comments explaining test logic** - Test name should be self-explanatory
+- ❌ **No inline comments** in Arrange/Act/Assert sections
+- ✅ **Use descriptive test method names** that explain the scenario
+- ✅ **Use descriptive variable names** (e.g., `expectedBalance`, `invalidPlayerId`)
+- ✅ **Clear AAA separation** with blank lines between sections
+
+**Example - BAD:**
+
+```csharp
+[Fact]
+public async Task Test1()
+{
+    // Arrange: Create a player with 100 coins
+    var player = new Player { Coins = 100 };
+    // Act: Try to spend 150 coins
+    var result = await handler.Handle(player, 150);
+    // Assert: Should fail
+    Assert.False(result.IsSuccess);
+}
+```
+
+**Example - GOOD:**
+
+```csharp
+[Fact]
+public async Task HandleAsync_WhenInsufficientCoins_ShouldReturnFailure()
+{
+    var playerWithOneHundredCoins = new Player { Coins = 100 };
+    var requestForOneHundredFiftyCoins = new DeductRequest(150);
+
+    var result = await handler.HandleAsync(playerWithOneHundredCoins, requestForOneHundredFiftyCoins);
+
+    Assert.False(result.IsSuccess);
+    Assert.Equal("Insufficient coins", result.Error.Message);
+}
+```
+
+---
+
+## 13. Prohibited Practices
+
+- ❌ **No `Thread.Sleep` in tests:** Use proper async/await or task synchronization
+- ❌ **No file system access:** Mock all I/O
+- ❌ **No database calls:** Unit tests must be in-memory
+- ❌ **No network calls:** Mock all external dependencies
+- ❌ **No testing private methods directly:** Test through public API
+- ❌ **No overly complex test setup:** If setup is complex, refactor the production code
+- ❌ **No comments in test code:** Test names and variables should be self-documenting
+
+## 13. Performance Considerations
+
+- Tests should complete in **< 100ms each**
+- Use `[Fact(Skip = "Performance test")]` for benchmarks
+- Don't test performance in unit tests (use BenchmarkDotNet separately)
+
+## 14. Test Organization
+
+Organize tests to mirror production code structure:
+
+```
+tests/
+└── GameServer.UnitTests/
+    ├── Application/
+    │   ├── Features/
+    │   │   ├── Auth/
+    │   │   │   └── LoginHandlerTests.cs
+    │   │   └── Gameplay/
+    │   │       ├── ResourceHandlerTests.cs
+    │   │       └── GiftHandlerTests.cs
+    │   └── Services/
+    │       └── MessageDispatcherTests.cs
+    └── Infrastructure/
+        ├── Persistence/
+        │   └── SqliteStateRepositoryTests.cs
+        └── Services/
+            └── InMemorySessionManagerTests.cs
+```
+
+## 15. Integration Testing with EF Core
+
+For repository tests, use SQLite in-memory database:
+
+```csharp
+public class SqliteStateRepositoryTests : IDisposable
+{
+    private readonly GameDbContext _context;
+    private readonly SqliteStateRepository _repository;
+    private readonly SqliteConnection _connection;
+
+    public SqliteStateRepositoryTests()
+    {
+        // Create in-memory SQLite connection
+        _connection = new SqliteConnection("DataSource=:memory:");
+        _connection.Open();
+
+        var options = new DbContextOptionsBuilder<GameDbContext>()
+            .UseSqlite(_connection)
+            .Options;
+
+        _context = new GameDbContext(options);
+        _context.Database.EnsureCreated();
+        _repository = new SqliteStateRepository(_context);
+    }
+
+    [Fact]
+    public async Task CreatePlayer_ShouldPersistWithDefaultResources()
+    {
+        // Arrange
+        var deviceId = "device123";
+
+        // Act
+        var player = await _repository.CreatePlayerAsync(deviceId);
+
+        // Assert
+        var retrieved = await _context.Players
+            .Include(p => p.Resources)
+            .FirstOrDefaultAsync(p => p.Id == player.Id);
+
+        Assert.NotNull(retrieved);
+        Assert.Equal(deviceId, retrieved.DeviceId);
+        Assert.Equal(2, retrieved.Resources.Count); // Coins and Rolls
+    }
+
+    [Fact]
+    public async Task AddFriendship_ShouldNormalizePlayerIds()
+    {
+        // Arrange
+        var player1 = await _repository.CreatePlayerAsync("device1");
+        var player2 = await _repository.CreatePlayerAsync("device2");
+
+        // Act - Add in reverse order
+        await _repository.AddFriendshipAsync(player2.Id, player1.Id);
+
+        // Assert - Should be stored as player1.Id < player2.Id
+        var friendship = await _context.Friendships.FirstOrDefaultAsync();
+        Assert.NotNull(friendship);
+        Assert.True(friendship.PlayerId1 < friendship.PlayerId2);
+    }
+
+    public void Dispose()
+    {
+        _context.Dispose();
+        _connection.Close();
+        _connection.Dispose();
+    }
+}
+```
+
+## 16. Testing Security Context
+
+Always test that handlers derive PlayerId from WebSocket, not payload:
+
+```csharp
+[Fact]
+public async Task UpdateResource_ShouldDerivePlayerIdFromSocket_NotPayload()
+{
+    // Arrange
+    var realPlayerId = Guid.NewGuid();
+    var fakePlayerId = Guid.NewGuid(); // Malicious client trying to impersonate
+    var mockSocket = new Mock<WebSocket>();
+
+    _mockSessionManager.Setup(s => s.GetPlayerId(mockSocket.Object))
+                       .Returns(realPlayerId);
+
+    var handler = new ResourceHandler(_mockSessionManager.Object, _mockRepository.Object);
+    var request = new UpdateResourceRequest(ResourceType.Coins, 100);
+
+    // Act
+    var result = await handler.HandleAsync(mockSocket.Object, request);
+
+    // Assert
+    _mockRepository.Verify(
+        r => r.UpdateResourceAsync(realPlayerId, ResourceType.Coins, 100),
+        Times.Once
+    );
+    _mockRepository.Verify(
+        r => r.UpdateResourceAsync(fakePlayerId, It.IsAny<ResourceType>(), It.IsAny<long>()),
+        Times.Never
+    );
+}
+```
+
+## 17. Code Example: Complete Test Class
+
+```csharp
+namespace GameServer.UnitTests.Application.Features.Auth;
+
+public class LoginHandlerTests
+{
+    private readonly Mock<IStateRepository> _mockRepository;
+    private readonly Mock<ISessionManager> _mockSessionManager;
+    private readonly LoginHandler _handler;
+
+    public LoginHandlerTests()
+    {
+        _mockRepository = new Mock<IStateRepository>();
+        _mockSessionManager = new Mock<ISessionManager>();
+        _handler = new LoginHandler(_mockRepository.Object, _mockSessionManager.Object);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WithNewPlayer_ShouldCreatePlayerAndReturnSuccess()
+    {
+        // Arrange
+        var deviceId = "device123";
+        var request = new LoginRequest(deviceId);
+        _mockRepository.Setup(r => r.GetPlayerByDeviceIdAsync(deviceId))
+                       .ReturnsAsync((Player?)null);
+        _mockSessionManager.Setup(s => s.IsPlayerOnline(It.IsAny<Guid>()))
+                           .Returns(false);
+
+        // Act
+        var result = await _handler.HandleAsync(request);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        _mockRepository.Verify(r => r.CreatePlayerAsync(It.IsAny<Player>()), Times.Once);
+        _mockSessionManager.Verify(s => s.RegisterSession(It.IsAny<Guid>(), It.IsAny<WebSocket>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WhenPlayerAlreadyOnline_ShouldReturnError()
+    {
+        // Arrange
+        var deviceId = "device123";
+        var existingPlayer = new Player(Guid.NewGuid(), deviceId);
+        var request = new LoginRequest(deviceId);
+        _mockRepository.Setup(r => r.GetPlayerByDeviceIdAsync(deviceId))
+                       .ReturnsAsync(existingPlayer);
+        _mockSessionManager.Setup(s => s.IsPlayerOnline(existingPlayer.Id))
+                           .Returns(true);
+
+        // Act
+        var result = await _handler.HandleAsync(request);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal("Player already online", result.Error.Message);
+        _mockRepository.Verify(r => r.CreatePlayerAsync(It.IsAny<Player>()), Times.Never);
+    }
+}
+```

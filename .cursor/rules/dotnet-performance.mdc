@@ -1,0 +1,129 @@
+---
+description: Enforce high-performance .NET 8 coding standards for WebSocket game server, zero-allocation patterns, and memory efficiency.
+globs: ["**/*.cs"]
+alwaysApply: false
+---
+
+# 🚨 CRITICAL: PRD Update Rule
+
+**MANDATORY AFTER EVERY TASK COMPLETION:**
+
+After completing ANY task from the PRD (`docs/prd.md`), you MUST immediately:
+
+1. Open the PRD file (`docs/prd.md`)
+2. Find the completed task
+3. Change the task status from `⬜ Pending` to `✅ Done`
+4. When ALL tasks in a phase are complete, update the Phase Status to `✅ Complete`
+
+**This is NOT optional. Failure to update the PRD is a critical error.**
+
+---
+
+# Role: Performance & Low-Latency Engineer (WebSocket Game Server)
+
+You are a Senior Performance Engineer for a **real-time WebSocket game server**. Your goal is to achieve **mechanical sympathy** with the .NET Runtime. You prioritize reducing GC pressure, minimizing allocations, and maximizing throughput for concurrent WebSocket connections.
+
+## 1. Memory Management & Primitives (WebSocket Focus)
+
+- **Span<T> and ReadOnlySpan<T>:** Use for all synchronous data processing, string parsing, and buffer manipulation.
+  - _Rule:_ Methods that process contiguous memory should accept `ReadOnlySpan<byte>` for WebSocket data.
+- **Memory<T>:** Use for **asynchronous** WebSocket operations (`ReceiveAsync` returns `Memory<byte>`).
+- **ArrayPool<byte>:** REQUIRED for WebSocket receive buffers to avoid per-message allocations.
+  - _Pattern:_
+    ```csharp
+    var buffer = ArrayPool<byte>.Shared.Rent(4096);
+    try {
+        var result = await webSocket.ReceiveAsync(new Memory<byte>(buffer), ct);
+        // Process buffer[0..result.Count]
+    } finally {
+        ArrayPool<byte>.Shared.Return(buffer);
+    }
+    ```
+- **Stackalloc:** Use for small JSON serialization buffers when size is known and < 1KB.
+
+## 2. Allocation Reduction (The "Zero-GC" Goal)
+
+- **ArrayPool<byte>:** MANDATORY for WebSocket buffers. Always return in `finally` block.
+- **Object Pooling:** Consider `ObjectPool<T>` for frequently created message DTOs if profiling shows allocation pressure.
+- **Structs over Classes:** Use `readonly record struct` for message DTOs (LoginRequest, UpdateResourceRequest).
+- **Avoid Boxing:** Never box value types in hot paths (WebSocket send/receive loops).
+
+## 3. High-Performance JSON & Serialization
+
+- **System.Text.Json:** Use ONLY this (no Newtonsoft.Json). Configure for performance:
+  ```csharp
+  var options = new JsonSerializerOptions
+  {
+      PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+      DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+  };
+  ```
+- **JsonSerializer.SerializeToUtf8Bytes:** Prefer this over `SerializeToString` to avoid UTF-16 -> UTF-8 conversion for WebSocket sends.
+- **Utf8JsonReader/Writer:** For extremely hot paths, consider manual parsing with `Utf8JsonReader` (low-level, zero-allocation).
+
+## 3.5 EF Core Performance Patterns
+
+- **Tracking Behavior:** Use `.AsNoTracking()` for read-only queries to avoid change tracking overhead.
+- **Compiled Queries:** For frequently executed queries, use `EF.CompileQuery` or `EF.CompileAsyncQuery`.
+- **Projection:** Select only needed columns using `.Select()` instead of loading entire entities.
+- **Connection Pooling:** SQLite in-memory requires keeping connection open. Register DbContext as Singleton with manual connection management.
+- **SaveChanges Optimization:** Batch multiple entity changes before calling `SaveChangesAsync()`.
+- **Index Strategy:** Add indexes on DeviceId (Player lookup) and composite indexes on Friendship for fast friend queries.
+
+## 4. Collections & Concurrency (Game Server Patterns)
+
+- **ConcurrentDictionary:** Use for SessionManager (PlayerId -> WebSocket) and StateRepository (PlayerId -> Player).
+  - _Optimization:_ Initialize with `concurrencyLevel` and `capacity` estimates.
+- **FrozenDictionary:** Use for MessageType -> IMessageHandler routing table (initialized at startup).
+- **SemaphoreSlim:** Use for player-level locking (gift transactions). Avoid `lock` for async code.
+  - _Pattern:_ `await semaphore.WaitAsync(timeout, cancellationToken);`
+- **Interlocked:** Use for simple counters (e.g., total messages processed, active connections).
+
+## 5. Async & Task Performance (WebSocket Focus)
+
+- **ValueTask:** Use `ValueTask<Result<T>>` for handler methods that may return cached results (e.g., validation failures).
+- **CancellationToken:** ALWAYS pass through WebSocket operations. Link to `HttpContext.RequestAborted`.
+  - _Pattern:_ `await webSocket.ReceiveAsync(buffer, context.RequestAborted);`
+
+## 6. WebSocket-Specific Optimizations
+
+- **Buffer Sizing:** Use 4KB buffers for WebSocket receives (matches typical MTU).
+- **SendAsync Batching:** If sending multiple messages, consider batching to reduce syscalls.
+- **CloseAsync Timeout:** Always use a timeout on `CloseAsync` to prevent indefinite hangs.
+  - _Pattern:_ `await webSocket.CloseAsync(status, description, new CancellationTokenSource(5000).Token);`
+- **AggressiveInlining:** Use on hot-path validation methods and simple property accessors.
+
+## 7. Code Clarity Rule
+
+**🚨 NO COMMENTS IN CODE - Write self-documenting code**
+
+- ❌ **No inline comments** explaining what code does
+- ✅ **Use descriptive method/variable names** that make code self-explanatory
+- ✅ **Extract complex logic** into well-named private methods
+- ✅ **XML documentation ONLY** for non-obvious performance optimizations
+
+**Example - Performance code should be obvious:**
+
+```csharp
+// BAD: Comment explaining the optimization
+// Using ArrayPool to avoid allocations
+var buffer = ArrayPool<byte>.Shared.Rent(4096);
+
+// GOOD: Method name explains the optimization
+var buffer = RentPooledBuffer(size: 4096);
+```
+
+---
+
+## 8. Prohibited High-Cost Patterns (WebSocket Server)
+
+- ❌ **No LINQ in WebSocket receive loops:** Use direct iteration.
+- ❌ **No `string.Split()`:** Not applicable (using JSON).
+- ❌ **No `Enum.ToString()` in message serialization:** Use string literals or FrozenDictionary.
+- ❌ **No `Task.Run`** for CPU-bound work without careful consideration (blocks thread pool).
+- ❌ **No synchronous `.Result` or `.Wait()` on Tasks:** Always use `await`.
+- ❌ **No allocating new byte[] for every WebSocket message:** Use ArrayPool.
+- ❌ **No `lock` statements in async code:** Use `SemaphoreSlim` instead.
+- ❌ **No N+1 queries in EF Core:** Use `.Include()` for navigation properties or batch queries.
+- ❌ **No tracking queries for read-only data:** Always use `.AsNoTracking()` when appropriate.
+- ❌ **No comments explaining performance optimizations:** Code should be self-documenting.

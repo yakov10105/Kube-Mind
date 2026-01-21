@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/KubeMind.Brain.Api/KubeMind.Brain.Api.csproj" />
+    <Project Path="src/KubeMind.Brain.Application/KubeMind.Brain.Application.csproj" />
+    <Project Path="src/KubeMind.Brain.Core/KubeMind.Brain.Core.csproj" />
+    <Project Path="src/KubeMind.Brain.Infrastructure/KubeMind.Brain.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/KubeMind.Brain.Tests/KubeMind.Brain.Tests.csproj" />
+  </Folder>
+</Solution>

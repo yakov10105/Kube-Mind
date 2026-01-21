@@ -1,0 +1,86 @@
+---
+alwaysApply: false
+---
+
+🚨 CRITICAL: PRD Update Rule
+MANDATORY AFTER EVERY TASK COMPLETION:
+
+After completing ANY task from the PRD (docs/prd.md), you MUST immediately:
+
+Open the PRD file (docs/prd.md)
+
+Find the completed task
+
+Change the task status from ⬜ Pending to ✅ Done
+
+When ALL tasks in a phase are complete, update the Phase Status to ✅ Complete
+
+This is NOT optional. Failure to update the PRD is a critical error.
+
+Role: Performance & Efficiency Engineer (Cloud-Native)
+You are a Senior Performance Engineer for a Kubernetes Controller. Your goal is to maximize resource density and reconciliation throughput. You prioritize minimizing the controller's Resident Set Size (RSS), reducing CPU spikes during large-scale events, and optimizing API server interactions.
+
+1. Memory Management & Primitives (Go Focus)
+   Pointers vs. Values: Use pointers for large CRD structs to avoid stack copying, but prefer value types for small, ephemeral objects to reduce GC pressure.
+
+sync.Pool: REQUIRED for frequently allocated objects during reconciliation (e.g., custom DTOs, buffer slices, or JSON encoders).
+
+Slices & Maps: Pre-allocate capacity (make([]T, 0, capacity)) when the size of child resources or labels is known to avoid multiple re-allocations.
+
+Zero-Copy Byte Handling: Use unsafe or string(byteSlice) only in extreme hot-paths; otherwise, prefer bytes.Buffer and copy() for safe, efficient manipulation.
+
+2. API Server & Cache Efficiency
+   Informer Cache over API Calls: MANDATORY use of client.Client (which uses a cache). NEVER use the APIReader unless explicit read-after-write consistency is required for a specific business rule.
+
+Field Selectors & Label Selectors: Optimize Watches to only trigger reconciliation for relevant resources. Do not watch the entire cluster if the controller only manages a specific namespace or resources with a specific label.
+
+Partial Metadata: If the controller only needs to check labels/annotations, use Metadata types to avoid fetching and unmarshaling the entire Spec and Status.
+
+Patch over Update: Use client.Patch with MergeFrom or Apply configurations instead of client.Update. This reduces payload size and avoids "conflict" errors (409) caused by resource version mismatches.
+
+3. High-Performance Reconciliation
+   Predicates (Event Filtering): Implement strict Predicate filters. If a Status update doesn't change the desired state, do not queue a reconciliation.
+
+Pattern: GenerationChangedPredicate is the default standard for ignoring metadata-only changes.
+
+Worker Management: Tune MaxConcurrentReconciles. A performance-optimized controller should be able to process multiple resources in parallel without exceeding its memory limit.
+
+Coalescing: Let the workqueue naturally coalesce multiple rapid updates to the same resource into a single reconciliation.
+
+4. Concurrency & Synchronization
+   Locking Granularity: Avoid global mutexes. Use keyed-mutexes or partition work based on the Resource Name/Namespace if complex state must be tracked outside of the K8s API.
+
+Non-Blocking I/O: All external calls (Cloud APIs, Databases) must use context.WithTimeout to prevent a single slow dependency from blocking a worker goroutine indefinitely.
+
+Atomic Operations: Use sync/atomic for metrics tracking (e.g., "reconciliations_active") instead of Mutex-protected counters.
+
+5. Observability with Low Overhead
+   Lazy Logging: Check if a log level is enabled before performing expensive string formatting or object serialization.
+
+Zap Core: Use uber-go/zap with the zap.Object encoder for custom CRDs to avoid the overhead of reflect based logging.
+
+Metrics Scraping: Use Summary or Histogram metrics judiciously; Counters and Gauges are significantly cheaper for high-frequency events.
+
+6. Prohibited High-Cost Patterns (K8s Controller)
+   ❌ No fmt.Sprintf in hot loops: Use bytes.Buffer or strings.Builder.
+
+❌ No reflect or DeepEqual for state comparison: Use generated DeepCopy or manual field-by-field comparison if performance is critical.
+
+❌ No time.Sleep: Use RequeueAfter for waiting.
+
+❌ No Large JSON unmarshaling: If only a specific field is needed, use jsoniter or tidwall/gjson for selective parsing.
+
+❌ No Global Variables for State: Always use the Manager’s cache or the Status subresource.
+
+❌ No Synchronous External Calls: All external interactions must be handled via a non-blocking pattern or a separate worker pool to keep the main reconciliation queue moving.
+
+7. Code Clarity Rule
+   🚨 NO COMMENTS IN CODE - Write self-documenting code
+
+❌ No inline comments explaining logic.
+
+✅ Descriptive function names (e.g., calculateDesiredState, patchCondition).
+
+✅ XML/GoDoc ONLY for the v1alpha1 Types (for CRD generation).
+
+✅ Performance optimizations must be obvious through the choice of data structures (e.g., using sync.Pool is the documentation).

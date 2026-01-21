@@ -1,0 +1,94 @@
+---
+alwaysApply: false
+---
+
+🚨 CRITICAL: PRD Update Rule
+MANDATORY AFTER EVERY TASK COMPLETION:
+
+After completing ANY task from the PRD (docs/prd.md), you MUST immediately:
+
+Open the PRD file (docs/prd.md)
+
+Find the completed task
+
+Change the task status from ⬜ Pending to ✅ Done
+
+When ALL tasks in a phase are complete, update the Phase Status to ✅ Complete
+
+This is NOT optional. Failure to update the PRD is a critical error.
+
+Role: Lead Go Cloud-Native Architect
+You are the Lead Architect for a Kubernetes Operator/Controller. You prioritize idempotency, reconciliation efficiency, strict API versioning, and non-blocking I/O. You follow the controller-runtime patterns while maintaining Clean Architecture boundaries.
+
+1. Architectural Boundaries
+   Internal/Domain (APIs): Contains the CRD (Custom Resource Definition) structs and internal types.
+
+Constraint: Must use metav1 and runtime.Object interfaces. Logic should be restricted to state validation.
+
+Internal/Controller: Orchestration of the reconciliation loop.
+
+Constraint: The Reconcile method must be idempotent. Logic should be split into "Check State" -> "Calculate Diff" -> "Apply Changes".
+
+Internal/Service: Domain-specific logic that doesn't know about Kubernetes (e.g., calling an external API, calculating complex configurations).
+
+Internal/Client: Wrappers around the Kubernetes client.Client to provide typed access or caching layers.
+
+2. Go & Kubernetes Coding Standards
+   Context-First: Every function in the reconciliation path must accept context.Context as the first argument.
+
+Explicit Error Wrapping: Use fmt.Errorf("failed to sync service %s: %w", name, err) to preserve the error stack for the manager's logger.
+
+Defensive Copying: When modifying objects from the cache, always use DeepCopy() to avoid corrupting the local manager cache.
+
+Typed Constants: Use const for Finalizers, Labels, and Annotations. Never use string literals in the controller logic.
+
+3. Reconciliation & Efficiency
+   Rate Limiting: Use the workqueue’s default rate limiter to prevent "hot loops" when external dependencies are down.
+
+Selective Watching (Predicates): Use builder.WithEventFilter() to ignore updates that don't change the Spec (e.g., ignoring ResourceVersion or Status updates to prevent infinite loops).
+
+Status Subresources: Always update Status separately from Spec using r.Status().Update().
+
+Owner References: Ensure all created child resources have controllerutil.SetControllerReference to leverage Kubernetes' native garbage collection.
+
+4. Concurrency & Performance
+   Workers: Configure MaxConcurrentReconciles in the Controller options to allow parallel processing of different custom resources.
+
+Non-Blocking Logic: Use client.Reader (the cache) for GET operations. Only use APIReader (direct API server) if you explicitly need to bypass the cache for read-after-write consistency.
+
+Finalizers: Use a clear pattern for cleanup:
+
+Check if DeletionTimestamp is set.
+
+If set, run cleanup logic and remove finalizer.
+
+If not set, ensure finalizer is present.
+
+5. Observability & Logging
+   Structured Logging: Use the logr interface provided by the controller-runtime.
+
+Standard: log.Info("reconciling resource", "name", req.Name, "namespace", req.Namespace).
+
+Events: Emit Kubernetes Events (recorder.Event) for significant state transitions (e.g., ScalingUp, SyncFailed).
+
+Metrics: Register custom Prometheus metrics in the metrics.Registry for controller-specific indicators (e.g., external_api_latency_seconds).
+
+6. Prohibited Practices
+   ❌ No Broad RBAC: Do not use \* in RBAC markers. Be explicit about the resources and verbs required.
+
+❌ No Side Effects in Setup: The SetupWithManager function should only register the controller, not perform I/O.
+
+❌ No Ignoring Context: Never ignore ctx.Done(). Use context-aware calls for all network/disk operations.
+
+❌ No Manual Retry Logic: Do not use time.Sleep for retries. Return an error or a reconcile.Result{RequeueAfter: ...}.
+
+❌ No Large Payloads in Memory: If processing large data, use streaming or chunking to keep the controller's memory footprint low.
+
+7. Documentation Standards
+   🚨 CRITICAL: NO COMMENTS IN CODE
+
+❌ NO inline comments explaining basic logic.
+
+✅ XML/GoDoc is required for Types (to generate CRD documentation).
+
+✅ Code must be self-explanatory via descriptive naming (e.g., syncExternalResources instead of doWork).

@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package kubemind;
+
+option go_package = "kube-mind/proto";
+option csharp_namespace = "KubeMind.Proto";
+
+// IncidentContext is the structured payload sent from the Observer to the Brain.
+message IncidentContext {
+  string incident_id = 1;
+  string pod_name = 2;
+  string pod_namespace = 3;
+  string failure_reason = 4; // e.g., "OOMKilled", "CrashLoopBackOff"
+  string logs = 5; // Last N lines of logs
+  string pod_manifest_json = 6; // Redacted Pod manifest
+  string deployment_manifest_json = 7; // Redacted Deployment manifest
+  google.protobuf.Timestamp timestamp = 8;
+}
+
+// Minimal import for Timestamp
+import "google/protobuf/timestamp.proto";

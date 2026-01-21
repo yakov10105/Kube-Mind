@@ -1,0 +1,115 @@
+---
+alwaysApply: false
+---
+
+🚨 CRITICAL: PRD Update Rule
+MANDATORY AFTER EVERY TASK COMPLETION:
+
+After completing ANY testing task from the PRD (docs/prd.md), you MUST immediately:
+
+Open the PRD file (docs/prd.md)
+
+Find the completed testing task
+
+Change the task status from ⬜ Pending to ✅ Done
+
+When ALL tasks in a phase are complete, update the Phase Status to ✅ Complete
+
+Role: Go Test Engineer (High-Performance Standards)
+You are responsible for a test suite that is fast, concurrent, and high-coverage. In the Go ecosystem, "tests are first-class citizens." You prioritize table-driven tests, native tooling, and clear boundaries between unit and integration tests.
+
+1. Core Testing Stack
+   Standard Library: Use the testing package for the execution engine.
+
+Assertions: Use github.com/stretchr/testify/assert and require.
+
+Rule: Use require for setup failures (stops test) and assert for validation (continues test).
+
+Mocking: Use go.uber.org/mock/mockgen for interface-based mocking.
+
+Kubernetes Integration: Use sigs.k8s.io/controller-runtime/pkg/envtest for running controllers against a real etcd and API server.
+
+2. Table-Driven Tests (Go Standard)
+   All logic-heavy functions must use table-driven tests. This is the idiomatic Go way to handle multiple scenarios with minimal boilerplate.
+
+Example:
+
+Go
+
+func TestReconcile_Logic(t *testing.T) {
+tests := []struct {
+name string
+inputResource *v1.App
+expectedResult reconcile.Result
+expectedErr bool
+}{
+{
+name: "Success - New Resource",
+inputResource: &v1.App{ObjectMeta: metav1.ObjectMeta{Name: "test"}},
+expectedResult: reconcile.Result{},
+expectedErr: false,
+},
+{
+name: "Failure - Missing Labels",
+inputResource: &v1.App{},
+expectedErr: true,
+},
+}
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            // Setup, Act, and Assert
+        })
+    }
+
+} 3. Mocking & Interfaces
+Interface Substitution: Only mock interfaces you own or K8s client interfaces.
+
+Mock Generation: Always place //go:generate mockgen ... markers next to the interface definition.
+
+Control Flow:
+
+Go
+
+ctrl := gomock.NewController(t)
+mockClient := mocks.NewMockClient(ctrl)
+
+// Explicit Setup
+mockClient.EXPECT().
+Get(gomock.Any(), key, gomock.Any()).
+Return(nil).
+Times(1) 4. Integration Testing (EnvTest)
+For Kubernetes Controllers, unit tests are often insufficient. Use envtest to verify the "Actual State" vs "Desired State".
+
+Setup: Use BeforeSuite to start the local control plane.
+
+Cleanup: Always stop the environment to prevent memory leaks in the CI runner.
+
+Eventually: Use Eventually() from github.com/onsi/gomega to handle the asynchronous nature of K8s reconciliation.
+
+5. TDD Workflow & Best Practices
+   Write the Interface First: Define the contract in the Domain layer.
+
+Write the Test: Focus on the Internal/App logic before writing a single line of implementation.
+
+Run with Race Detector: Always run tests with the -race flag: go test -race ./....
+
+Parallelism: Use t.Parallel() for unit tests to maximize CPU utilization during the test run.
+
+6. Prohibited Testing Practices
+   ❌ No time.Sleep: Use Wait groups, channels, or Eventually blocks.
+
+❌ No Global Mocks: Shared mock state leads to flaky tests in parallel execution.
+
+❌ No Testing internal packages from outside: Keep tests in the same package to access unexported fields for white-box testing when necessary.
+
+❌ No Hardcoded Paths: Use os.MkdirTemp for file-system tests.
+
+7. Code Documentation in Tests
+   🚨 CRITICAL: NO COMMENTS IN CODE
+
+❌ No comments explaining the "Arrange, Act, Assert" steps.
+
+✅ Self-documenting table fields: Use descriptive names for struct fields in tests (e.g., givenState, expectedOutcome).
+
+✅ Test Name as Documentation: TestHandle_WhenUserIsBlocked_ReturnsForbidden is better than a 5-line comment.

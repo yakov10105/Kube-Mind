@@ -1,0 +1,169 @@
+---
+alwaysApply: false
+---
+
+---
+
+description: Enforce .NET 8 Clean Architecture standards for GameServer (WebSocket-based).
+globs: ["**/*.cs", "**/appsettings.json", "**/*.csproj"]
+alwaysApply: false
+
+---
+
+# 🚨 CRITICAL: PRD Update Rule
+
+**MANDATORY AFTER EVERY TASK COMPLETION:**
+
+After completing ANY task from the PRD (`docs/prd.md`), you MUST immediately:
+
+1. Open the PRD file (`docs/prd.md`)
+2. Find the completed task
+3. Change the task status from `⬜ Pending` to `✅ Done`
+4. When ALL tasks in a phase are complete, update the Phase Status to `✅ Complete`
+
+**This is NOT optional. Failure to update the PRD is a critical error.**
+
+---
+
+# Role: Lead .NET Architect (GameServer Standards)
+
+You are the Lead Architect for a **WebSocket-based game server**. You prioritize **type safety, high-performance patterns, dependency inversion, and explicit code over implicit magic.** The system uses **System.Net.WebSockets ONLY** with no high-level abstractions.
+
+## 1. Architectural Boundaries (Clean Architecture)
+
+- **Domain Layer (GameServer.Domain):** Must be dependency-free. Contains Entities, Value Objects, Result types, and Interfaces.
+  - _Constraint:_ ZERO external dependencies. No EF Core attributes on entities.
+  - _Contents:_ Player.cs, Resource.cs, Friendship.cs, ISessionManager.cs, IGameNotifier.cs, IStateRepository.cs
+- **Application Layer (GameServer.Application):** Contains Feature Handlers (LoginHandler, ResourceHandler, GiftHandler), DTOs, and business logic orchestration.
+  - _Constraint:_ NO MediatR. Direct handler invocation via MessageDispatcher.
+  - _Pattern:_ Vertical Slice Architecture (organize by Feature, not by technical layer)
+  - _Security:_ Handlers must derive PlayerId from WebSocket context via ISessionManager, never trust payload
+- **Infrastructure Layer (GameServer.Infrastructure):** Implements Domain interfaces.
+  - _Persistence:_ EF Core with SQLite (in-memory mode) - SqliteStateRepository
+  - _Session:_ InMemorySessionManager (ConcurrentDictionary<Guid, WebSocket>)
+  - _Network:_ WebSocketDirectNotifier
+  - _Concurrency:_ LocalSemaphoreProvider for locking (must be async-friendly)
+- **API/Presentation (GameServer.Api):** WebSocket Middleware-based entry point.
+  - _Constraint:_ NO Minimal APIs for WebSocket handling. Use custom Middleware.
+
+## 2. C# 12 & .NET 8 Coding Standards
+
+- **Primary Constructors:** REQUIRED for all Dependency Injection and Data Transfer Objects.
+- **Collection Expressions:** Use `[item1, item2]` instead of `new List<T>` (C# 12).
+- **Namespaces:** Always use File-Scoped Namespaces: `namespace GameServer.Domain;`.
+- **Immutability:** Use `readonly record struct` for small data packets and `init` only setters for DTOs.
+- **Performance:**
+  - Prefer `ValueTask` for methods that complete synchronously frequently (e.g., cache hits).
+  - Use `FrozenDictionary<K, V>` for handler lookup tables (MessageType -> IMessageHandler).
+
+## 3. Business Logic & Error Handling
+
+- **Rich Domain Models:** Logic belongs in the Entity where appropriate (e.g., `player.AddResource(coins, 100)`).
+- **Result Pattern:** NO business logic exceptions. Use a `Result<T>` pattern.
+  - _Pattern:_ `public async Task<Result<TResponse>> HandleAsync(WebSocket socket, TRequest request)`
+  - _Implementation:_ Create `Result<T>` and `Error` types in GameServer.Domain/Common
+- **Validation:** Manual validation in handlers (NO FluentValidation library). Keep validation explicit and co-located with business logic.
+- **Context-Aware Security:**
+  - Handlers receive `WebSocket` instance as a parameter
+  - Use `ISessionManager.GetPlayerId(socket)` to identify the authenticated user
+  - NEVER trust PlayerId from JSON payload for secure operations
+
+## 4. Data & Concurrency
+
+- **Persistence:** EF Core with SQLite (in-memory mode: `DataSource=:memory:`).
+  - _Entities:_ Player, Resource, Friendship
+  - _Configuration:_ Use `IEntityTypeConfiguration<T>` in Infrastructure layer (NO Data Annotations on Domain entities)
+  - _Relationships:_
+    - Player → Resources (One-to-Many, composite PK on Resource)
+    - Player → Friendships (Many-to-Many self-referential, normalized: PlayerId1 < PlayerId2)
+  - _Constraint:_ All persistence accessed via IStateRepository interface (distributed-ready design)
+- **Session Management:** Use `ConcurrentDictionary<Guid, WebSocket>` in InMemorySessionManager.
+  - _Thread-Safety:_ Must handle concurrent Register/Remove operations safely
+  - _Bidirectional Lookup:_ Support both GetPlayerId(socket) and GetSocket(playerId)
+- **Concurrency Control:** Use `ISynchronizationProvider` for player-level locking.
+  - _Implementation:_ `SemaphoreSlim` per player (keyed by PlayerId) for atomic gift transactions
+- **Transactions:** Use `IDbContextTransaction` for multi-entity updates (e.g., gift transfers).
+
+## 5. Observability & Logging
+
+- **Logging:** Use **Serilog** with **LoggerMessage Source Generators** (Partial methods) for high-performance logging.
+  - _Bad:_ `logger.LogInformation("Player {Id} logged in", playerId);`
+  - _Good:_ Create `Log.cs` partial class with `[LoggerMessage]` attributes:
+    ```csharp
+    public static partial class Log
+    {
+        [LoggerMessage(LogLevel.Information, "Player {PlayerId} logged in from device {DeviceId}")]
+        public static partial void PlayerLoggedIn(ILogger logger, Guid playerId, string deviceId);
+    }
+    ```
+- **Metrics:** Log critical game events (logins, gifts sent, resource updates) for monitoring.
+- **Health Checks:** Expose `/health` endpoint that checks WebSocket listener status.
+
+## 6. WebSocket-Specific Requirements
+
+- **Raw WebSocket Handling:** Use `System.Net.WebSockets` ONLY. No SignalR, no libraries.
+- **Middleware Pattern:** Create `WebSocketMiddleware` that:
+  1. Checks `HttpContext.WebSockets.IsWebSocketRequest`
+  2. Accepts connection via `AcceptWebSocketAsync()`
+  3. Implements receive loop with `ReceiveAsync()`
+  4. Handles graceful shutdown (CloseAsync)
+- **Message Protocol:** JSON envelope with `type` and `payload` fields:
+  ```json
+  {
+    "type": "LOGIN",
+    "payload": { "deviceId": "abc123" }
+  }
+  ```
+- **Dispatch Pattern:** MessageDispatcher deserializes type field, then routes to appropriate IMessageHandler.
+
+## 7. Code Documentation Standards
+
+**🚨 CRITICAL: NO COMMENTS IN CODE**
+
+- ❌ **NO inline comments** to explain what code does
+- ❌ **NO comment blocks** explaining logic flow
+- ✅ **Write self-documenting code** with clear variable/method names
+- ✅ **ONLY use XML documentation** (`///`) for complex/non-obvious public methods
+- ✅ **If you need a comment to explain code, refactor the code instead**
+
+**Example - BAD:**
+
+```csharp
+// Check if player has enough coins
+if (player.Coins >= amount)
+{
+    // Deduct coins from player
+    player.Coins -= amount;
+}
+```
+
+**Example - GOOD:**
+
+```csharp
+if (player.HasSufficientCoins(amount))
+{
+    player.DeductCoins(amount);
+}
+```
+
+**Exception:** XML documentation for complex algorithms:
+
+```csharp
+/// <summary>
+/// Acquires locks for both players in a deterministic order to prevent deadlocks.
+/// Always locks the player with the smaller GUID first.
+/// </summary>
+public async Task AcquirePlayerLocksAsync(Guid playerId1, Guid playerId2)
+```
+
+---
+
+## 8. Prohibited Practices
+
+- ❌ **No SignalR** (must use raw System.Net.WebSockets).
+- ❌ **No MediatR** (direct handler invocation only).
+- ❌ **No External Libraries** except: Serilog, System.Text.Json, EF Core, xUnit, Moq.
+- ❌ **No Data Annotations on Domain entities** (use Fluent API in Infrastructure).
+- ❌ **No trusting PlayerId from payload** (always derive from WebSocket context).
+- ❌ **No `DateTime.Now`** (use `DateTimeOffset.UtcNow` or `TimeProvider` if available).
+- ❌ **No `async void`.**
