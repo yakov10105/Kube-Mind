@@ -62,10 +62,10 @@ sequenceDiagram
     gRPC Server (Brain)->>UI (SignalR): Notify("New Incident Received")
     gRPC Server (Brain)->>VectorDB (Redis): Search for similar incidents/docs
     gRPC Server (Brain)->>SemanticKernel: RunAnalysis(EnrichedContext)
-    
+
     SemanticKernel->>SemanticKernel: Create Plan (e.g., "1. Analyze Logs, 2. Check Deployment")
     UI (SignalR)->>UI (SignalR): Stream("Plan: ...")
-    
+
     loop Plan Execution
         SemanticKernel->>ToolPlugins: ExecuteNextStep()
         ToolPlugins-->>SemanticKernel: return StepResult
@@ -109,9 +109,9 @@ The Brain operates on a continuous cognitive loop for each incident:
 
 **Goal:** Establish the core service and basic AI reasoning capability.
 
-| Task                  | Sub-tasks                                                                     | Definition of Done (DoD)                                                                 |
-| :-------------------- | :---------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------- |
-| **1.1 gRPC Service**  | • Implement `IncidentService` from `.proto`<br>• Setup Proto code-gen for C#  | The service logs incoming Observer payloads to a Serilog sink.                           |
+| Task                  | Sub-tasks                                                                       | Definition of Done (DoD)                                                                 |
+| :-------------------- | :------------------------------------------------------------------------------ | :--------------------------------------------------------------------------------------- |
+| **1.1 gRPC Service**  | • Implement `IncidentService` from `.proto`<br>• Setup Proto code-gen for C#    | The service logs incoming Observer payloads to a Serilog sink.                           |
 | **1.2 Kernel Config** | • Register `Kernel` with AI Connectors via DI<br>• Create a `/healthz` endpoint | The `/healthz` endpoint returns 200 and confirms successful API connectivity to the LLM. |
 | **1.3 Observability** | • Add OpenTelemetry middleware & exporters<br>• Configure Serilog for structure | An incoming gRPC call generates a distributed trace visible in Jaeger/Zipkin.            |
 
@@ -119,30 +119,30 @@ The Brain operates on a continuous cognitive loop for each incident:
 
 **Goal:** Empower the AI to understand Kubernetes failures and learn from past data.
 
-| Task                     | Sub-tasks                                                                           | Definition of Done (DoD)                                                                        |
-| :----------------------- | :---------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------- |
-| **2.1 K8s Diagnostic Plugin** | • Create `K8sDiagnosticsPlugin`<br>• Engineer prompts for log/manifest analysis   | The agent can be prompted with an `IncidentContext` and return a structured JSON diagnosis with >90% accuracy on test data. |
-| **2.2 Vector Memory**    | • Implement `IMemoryStore` using Redis<br>• Create a seeding script for runbooks      | The agent, when presented with a known error, includes a "similar past incident" link in its analysis. |
-| **2.3 Auto-Function Calling** | • Map C# methods to `KernelFunction`<br>• Configure auto-invocation planner        | The agent automatically calls a `KubernetesPlugin.GetPodStatus` function when its plan requires it, without being explicitly told to. |
+| Task                          | Sub-tasks                                                                        | Definition of Done (DoD)                                                                                                              |
+| :---------------------------- | :------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
+| **2.1 K8s Diagnostic Plugin** | • Create `K8sDiagnosticsPlugin`<br>• Engineer prompts for log/manifest analysis  | The agent can be prompted with an `IncidentContext` and return a structured JSON diagnosis with >90% accuracy on test data.           |
+| **2.2 Vector Memory**         | • Implement `IMemoryStore` using Redis<br>• Create a seeding script for runbooks | The agent, when presented with a known error, includes a "similar past incident" link in its analysis.                                |
+| **2.3 Auto-Function Calling** | • Map C# methods to `KernelFunction`<br>• Configure auto-invocation planner      | The agent automatically calls a `KubernetesPlugin.GetPodStatus` function when its plan requires it, without being explicitly told to. |
 
 ### Phase 3: The Remediation Loop (GitOps)
 
 **Goal:** Close the loop by translating diagnoses into concrete, version-controlled infrastructure changes.
 
-| Task                     | Sub-tasks                                                                              | Definition of Done (DoD)                                                                              |
-| :----------------------- | :------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------- |
-| **3.1 GitOps Plugin**    | • Implement `GitHubPlugin` using `Octokit.NET`<br>• Logic for branch creation & PR filing | Given a target repo and a file change, the system successfully opens a PR in a test GitHub repository. |
-| **3.2 Real-time UI Stream** | • Implement a SignalR Hub<br>• Integrate SK hooks to stream planner/function events    | A basic web UI displays a live, formatted log of "Agent is thinking...", "Agent is calling tool X...". |
-| **3.3 Approval Workflow**  | • Implement a "Pending Approval" state<br>• Add Slack/Teams notification to GitOpsPlugin | When a PR is created, a notification is posted to a test Slack channel with a link to the PR.     |
+| Task                        | Sub-tasks                                                                                 | Definition of Done (DoD)                                                                               |
+| :-------------------------- | :---------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------- |
+| **3.1 GitOps Plugin**       | • Implement `GitHubPlugin` using `Octokit.NET`<br>• Logic for branch creation & PR filing | Given a target repo and a file change, the system successfully opens a PR in a test GitHub repository. |
+| **3.2 Real-time UI Stream** | • Implement a SignalR Hub<br>• Integrate SK hooks to stream planner/function events       | A basic web UI displays a live, formatted log of "Agent is thinking...", "Agent is calling tool X...". |
+| **3.3 Approval Workflow**   | • Implement a "Pending Approval" state<br>• Add Slack/Teams notification to GitOpsPlugin  | When a PR is created, a notification is posted to a test Slack channel with a link to the PR.          |
 
 ### Phase 4: Scaling & Resilience
 
 **Goal:** Harden the Brain for enterprise-scale reliability and safety.
 
-| Task                      | Sub-tasks                                                                             | Definition of Done (DoD)                                                                              |
-| :------------------------ | :------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------- |
-| **4.1 Cost & Rate Limiting** | • Implement token-bucket for LLM calls<br>• Add incident de-duplication logic           | A test that sends 100 identical incidents in one minute results in only one new AI analysis workflow. |
-| **4.2 Security Hardening**  | • Manage API keys via Azure Key Vault/HashiCorp Vault<br>• Add PII redaction to logging | All secrets are loaded from a secure vault; no sensitive data is ever written to console logs.        |
+| Task                          | Sub-tasks                                                                               | Definition of Done (DoD)                                                                              |
+| :---------------------------- | :-------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------- |
+| **4.1 Cost & Rate Limiting**  | • Implement token-bucket for LLM calls<br>• Add incident de-duplication logic           | A test that sends 100 identical incidents in one minute results in only one new AI analysis workflow. |
+| **4.2 Security Hardening**    | • Manage API keys via Azure Key Vault/HashiCorp Vault<br>• Add PII redaction to logging | All secrets are loaded from a secure vault; no sensitive data is ever written to console logs.        |
 | **4.3 "Polycheck" Guardrail** | • Implement a secondary LLM validation step<br>• Define a schema of "Forbidden Actions" | A unit test shows that a remediation plan containing a "delete" action is successfully blocked.       |
 
 ---
