@@ -110,7 +110,7 @@ The controller will operate under a principle of least privilege. It requires `g
 *   ✅ Init Go modules
 *   ✅ Scaffold with `kubebuilder`
 
-#### ⬜ 1.2 RBAC Setup
+#### ✅ 1.2 RBAC Setup
 
 **DoD:** Controller pod starts and its logs show successful watches on pods and deployments (no 403s).
 
