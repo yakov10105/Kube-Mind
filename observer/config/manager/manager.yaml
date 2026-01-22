@@ -94,6 +94,17 @@ spec:
             requests:
               cpu: 10m
               memory: 64Mi
+          env:
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: observer-config
+                  key: LOG_LEVEL
+            - name: DEBOUNCE_TTL_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: observer-config
+                  key: DEBOUNCE_TTL_SECONDS
           volumeMounts: []
       volumes: []
       serviceAccountName: controller-manager

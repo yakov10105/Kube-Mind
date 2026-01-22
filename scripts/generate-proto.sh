@@ -26,12 +26,10 @@ protoc --proto_path="$PROTO_DIR" \
        "$PROTO_DIR"/incident.proto
 
 echo "Generating C# code..."
-# For .NET, it's often better to let the project file handle generation.
-# This part is for manual generation or reference.
-protoc --proto_path="$PROTO_DIR" \
-       --csharp_out="$BRAIN_OUT_DIR" \
-       --grpc_out="$BRAIN_OUT_DIR" \
-       "$PROTO_DIR"/incident.proto
+# For .NET, generation is typically handled by the Grpc.Tools NuGet package
+# within the .csproj file. Removing explicit protoc --grpc_out here.
+echo "C# protobuf generation delegated to .NET project tooling."
+
 
 echo "Protobuf generation complete."
 

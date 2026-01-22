@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-mind-observer
+  namespace: argocd # Assuming ArgoCD is installed in the 'argocd' namespace
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/Kube-Mind.git # Replace with your actual repository URL
+    targetRevision: HEAD # Use HEAD for the latest commit on the default branch
+    path: deploy/helm/observer
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-mind-system # The namespace where the observer will be deployed
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true # Automatically create the target namespace if it doesn't exist

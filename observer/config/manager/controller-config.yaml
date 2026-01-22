@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: observer-config
+  namespace: system # Assuming the controller runs in the 'system' namespace
+data:
+  # Log level for the controller (e.g., info, debug, error)
+  LOG_LEVEL: "info"
+  # Debounce TTL for events in seconds
+  DEBOUNCE_TTL_SECONDS: "300"

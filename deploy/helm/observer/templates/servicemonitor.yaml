@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "kube-mind-observer.fullname" . }}
+  labels:
+    {{- include "kube-mind-observer.labels" . | nindent 4 }}
+    release: prometheus-stack # Common label for Prometheus operator to discover ServiceMonitors
+spec:
+  selector:
+    matchLabels:
+      {{- include "kube-mind-observer.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: metrics
+      interval: {{ .Values.serviceMonitor.interval }}
+      scheme: http # Assuming HTTP metrics endpoint for now
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}

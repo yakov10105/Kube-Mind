@@ -19,3 +19,14 @@ message IncidentContext {
 
 // Minimal import for Timestamp
 import "google/protobuf/timestamp.proto";
+
+// The gRPC service for sending incidents.
+service IncidentService {
+  // A client-streaming RPC to send incident data.
+  rpc StreamIncident(stream IncidentContext) returns (StreamIncidentResponse);
+}
+
+// The response message for the StreamIncident RPC.
+message StreamIncidentResponse {
+  string status = 1;
+}

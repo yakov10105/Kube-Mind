@@ -34,6 +34,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"go.uber.org/zap/zapcore"
+
+	"kube-mind/observer/internal/comms"
+	"kube-mind/observer/internal/controller"
+	observerconfig "kube-mind/observer/internal/config"
+	"kube-mind/observer/internal/harvester"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -57,6 +63,8 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var grpcServerAddress string
+	var grpcCaCertPath, grpcClientCertPath, grpcClientKeyPath string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -75,13 +83,37 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.StringVar(&grpcServerAddress, "grpc-server-address", "localhost:50051", "The address of the gRPC Brain server.")
+	flag.StringVar(&grpcCaCertPath, "grpc-ca-cert", "", "Path to the gRPC CA certificate.")
+	flag.StringVar(&grpcClientCertPath, "grpc-client-cert", "", "Path to the gRPC client certificate.")
+	flag.StringVar(&grpcClientKeyPath, "grpc-client-key", "", "Path to the gRPC client key.")
 	opts := zap.Options{
 		Development: true,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
+	// Load controller configuration
+	cfg, err := observerconfig.LoadConfig()
+	if err != nil {
+		setupLog.Error(err, "unable to load controller configuration")
+		os.Exit(1)
+	}
+
+	// Set up logger with configured log level
+	switch cfg.LogLevel {
+	case "debug":
+		opts.Level = zapcore.DebugLevel
+	case "info":
+		opts.Level = zapcore.InfoLevel
+	case "error":
+		opts.Level = zapcore.ErrorLevel
+	default:
+		opts.Level = zapcore.InfoLevel
+	}
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	setupLog.Info("Loaded configuration", "logLevel", cfg.LogLevel, "debounceTTLSeconds", cfg.DebounceTTLSeconds)
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
@@ -174,6 +206,44 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize harvester components
+	restConfig := ctrl.GetConfigOrDie()
+	logAggregator, err := harvester.NewK8sLogAggregator(restConfig)
+	if err != nil {
+		setupLog.Error(err, "unable to create log aggregator")
+		os.Exit(1)
+	}
+	manifestParser, err := harvester.NewManifestParser(restConfig)
+	if err != nil {
+		setupLog.Error(err, "unable to create manifest parser")
+		os.Exit(1)
+	}
+	incidentCache := harvester.NewGoCacheIntelligenceCache(cfg.DebounceTTLSeconds, cfg.DebounceTTLSeconds/2) // Cleanup half as often as expiration
+
+	// Initialize gRPC client
+	grpcClient, err := comms.NewBrainGrpcClient(ctrl.SetupSignalHandler(), grpcServerAddress, grpcCaCertPath, grpcClientCertPath, grpcClientKeyPath)
+	if err != nil {
+		setupLog.Error(err, "unable to create gRPC client")
+		os.Exit(1)
+	}
+	defer func() {
+		if err := grpcClient.Close(); err != nil {
+			setupLog.Error(err, "failed to close gRPC client")
+		}
+	}()
+
+	if err = (&controller.PodReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		LogAggregator: logAggregator,
+		ManifestParser: manifestParser,
+		IncidentCache: incidentCache,
+		GrpcClient: grpcClient,
+		Config: cfg,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Pod")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

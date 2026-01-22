@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kube-mind-observer.fullname" . }}
+  labels:
+    {{- include "kube-mind-observer.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "kube-mind-observer.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kube-mind-observer.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "kube-mind-observer.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: manager
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.service.metricsPort }}
+              protocol: TCP
+          args:
+            - "--leader-elect"
+            - "--metrics-bind-address=:{{ .Values.service.metricsPort }}"
+            - "--health-probe-bind-address=:8081"
+            - "--grpc-server-address={{ .Values.grpc.serverAddress }}"
+            - "--grpc-ca-cert={{ .Values.grpc.caCertPath }}"
+            - "--grpc-client-cert={{ .Values.grpc.clientCertPath }}"
+            - "--grpc-client-key={{ .Values.grpc.clientKeyPath }}"
+          envFrom:
+            - configMapRef:
+                name: {{ include "kube-mind-observer.fullname" . }}-config
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: certs
+              mountPath: /etc/certs
+              readOnly: true
+      volumes:
+        - name: certs
+          secret:
+            secretName: {{ include "kube-mind-observer.fullname" . }}-grpc-certs # Assumes a Secret named accordingly exists
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key

@@ -1,0 +1,12 @@
+{
+	"name": ".NET Brain Service",
+	"dockerFile": "Dockerfile",
+	"forwardPorts": [5000, 5001],
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-dotnettools.csdevkit"
+			]
+		}
+	}
+}

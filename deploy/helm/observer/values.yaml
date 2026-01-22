@@ -1,0 +1,39 @@
+replicaCount: 1
+
+image:
+  repository: kube-mind-observer
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: "kube-mind-observer-sa"
+
+config:
+  logLevel: "info"
+  debounceTTLSeconds: "300"
+
+grpc:
+  serverAddress: "kube-mind-brain:50051" # Default to internal service address
+  caCertPath: "/etc/certs/ca.crt"         # Path within the pod for CA cert
+  clientCertPath: "/etc/certs/tls.crt"    # Path within the pod for client cert
+  clientKeyPath: "/etc/certs/tls.key"     # Path within the pod for client key
+
+service:
+  type: ClusterIP
+  metricsPort: 8080 # Port for Prometheus metrics
+
+serviceMonitor:
+  enabled: true
+  interval: "30s"
+
+# Resource limits for the observer pod
+resources:
+  limits:
+    cpu: 250m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
