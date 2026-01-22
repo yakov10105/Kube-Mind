@@ -66,6 +66,11 @@ spec:
           image: controller:latest
           imagePullPolicy: IfNotPresent
           name: manager
+          env:  # <--- ADD THIS SECTION
+          - name: CLIENT_CERT_PATH  # Use the exact variable name your Go code looks for!
+            value: "/etc/certs/client.crt"
+          - name: CLIENT_KEY_PATH
+            value: "/etc/certs/client.key"
           ports: []
           securityContext:
             readOnlyRootFilesystem: true

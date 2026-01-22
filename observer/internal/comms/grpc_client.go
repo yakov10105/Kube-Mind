@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
 	pb "kube-mind/observer/proto"
@@ -28,39 +29,43 @@ type BrainGrpcClient struct {
 }
 
 // NewBrainGrpcClient creates and connects a new BrainGrpcClient.
-func NewBrainGrpcClient(ctx context.Context, addr, caCertPath, clientCertPath, clientKeyPath string) (*BrainGrpcClient, error) {
-	// Load the client's certificate and private key
-	clientCert, err := tls.LoadX509KeyPair(clientCertPath, clientKeyPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load client key pair: %w", err)
-	}
-
-	// Load the CA certificate
-	caCert, err := os.ReadFile(caCertPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read CA certificate: %w", err)
-	}
-	caCertPool := x509.NewCertPool()
-	if !caCertPool.AppendCertsFromPEM(caCert) {
-		return nil, fmt.Errorf("failed to add CA certificate to pool")
-	}
-
-	// Create TLS credentials
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{clientCert},
-		RootCAs:      caCertPool,
-	}
-	creds := credentials.NewTLS(tlsConfig)
-
-	// Set up gRPC dial options
+// If `insecure` is true, it will connect without mTLS. Otherwise, mTLS is used.
+func NewBrainGrpcClient(ctx context.Context, addr string, useInsecureTransport bool, caCertPath, clientCertPath, clientKeyPath string) (*BrainGrpcClient, error) {
 	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(creds),
 		grpc.WithBlock(), // Block until the connection is established
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                10 * time.Second,
 			Timeout:             time.Second,
 			PermitWithoutStream: true,
 		}),
+	}
+
+	if useInsecureTransport {
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	} else {
+		// Load the client's certificate and private key
+		clientCert, err := tls.LoadX509KeyPair(clientCertPath, clientKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load client key pair: %w", err)
+		}
+
+		// Load the CA certificate
+		caCert, err := os.ReadFile(caCertPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read CA certificate: %w", err)
+		}
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caCert) {
+			return nil, fmt.Errorf("failed to add CA certificate to pool")
+		}
+
+		// Create TLS credentials
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{clientCert},
+			RootCAs:      caCertPool,
+		}
+		creds := credentials.NewTLS(tlsConfig)
+		opts = append(opts, grpc.WithTransportCredentials(creds))
 	}
 
 	// Dial the server

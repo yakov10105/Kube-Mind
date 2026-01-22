@@ -87,7 +87,7 @@ func NewRegexRedactionEngine() (*RegexRedactionEngine, error) {
 		`("name":\s*".*?_SECRET.*?",\s*"value":\s*").*?"`,
 		`("name":\s*".*?_TOKEN.*?",\s*"value":\s*").*?"`,
 		`("name":\s*".*?_KEY.*?",\s*"value":\s*").*?"`,
-		`("name":\s*".*?PASSWORD.*?",\s*"value":\s*").*?"`,
+		`(?i)("name":\s*".*?PASSWORD.*?",\s*"value":\s*").*?"`,
 	}
 
 	compiledPatterns := make([]*regexp.Regexp, len(patterns))

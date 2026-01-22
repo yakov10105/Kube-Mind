@@ -41,6 +41,9 @@ spec:
             - "--grpc-ca-cert={{ .Values.grpc.caCertPath }}"
             - "--grpc-client-cert={{ .Values.grpc.clientCertPath }}"
             - "--grpc-client-key={{ .Values.grpc.clientKeyPath }}"
+          {{- if .Values.grpc.insecure }}
+            - "--grpc-insecure=true"
+          {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ include "kube-mind-observer.fullname" . }}-config

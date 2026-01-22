@@ -27,63 +27,85 @@ func (s *mockIncidentService) StreamIncident(stream pb.IncidentService_StreamInc
 	if s.streamErr != nil {
 		return s.streamErr
 	}
-
-	// In a client-streaming RPC, the server receives multiple messages from the client.
-	// For this test, we only expect one incident context to be streamed.
 	inc, err := stream.Recv()
 	if err != nil {
 		return err
 	}
 	s.lastIncident = inc
-
 	return stream.SendAndClose(&pb.StreamIncidentResponse{Status: "Received"})
 }
 
 func TestBrainGrpcClient_StreamIncident(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	listener := bufconn.Listen(1024 * 1024)
-	s := grpc.NewServer()
-	mockService := &mockIncidentService{}
-	pb.RegisterIncidentServiceServer(s, mockService)
-
-	go func() {
-		if err := s.Serve(listener); err != nil {
-			t.Logf("Server exited with error: %v", err)
-		}
-	}()
-	defer s.Stop()
-
-	// Create a client connection to the buffconn listener
-	dialer := func(context.Context, string) (net.Conn, error) {
-		return listener.Dial()
-	}
-	conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(dialer), grpc.WithInsecure())
-	require.NoError(t, err)
-	defer conn.Close()
-
-	// Create the gRPC client instance
-	client := &comms.BrainGrpcClient{
-		Conn:   conn,
-		Client: pb.NewIncidentServiceClient(conn),
-	}
 
 	incident := &pb.IncidentContext{
 		IncidentId: "test-incident",
 		PodName:    "test-pod",
 	}
 
-	// Test successful streaming
-	err = client.StreamIncident(ctx, incident)
-	require.NoError(t, err)
-	assert.NotNil(t, mockService.lastIncident)
-	assert.Equal(t, incident.IncidentId, mockService.lastIncident.IncidentId)
+	testCases := []struct {
+		name                string
+		mockService         *mockIncidentService
+		expectErr           bool
+		expectedErrCode     codes.Code
+		expectedErrContains string
+	}{
+		{
+			name:            "Successful stream",
+			mockService:     &mockIncidentService{},
+			expectErr:       false,
+		},
+		{
+			name: "Stream error from server",
+			mockService: &mockIncidentService{
+				streamErr: status.Error(codes.Internal, "internal server error"),
+			},
+			expectErr:           true,
+			expectedErrCode:     codes.Internal,
+			expectedErrContains: "internal server error",
+		},
+	}
 
-	// Test streaming error
-	mockService.streamErr = status.Error(codes.Internal, "internal server error")
-	err = client.StreamIncident(ctx, incident)
-	require.Error(t, err)
-	st, ok := status.FromError(err)
-	assert.True(t, ok)
-	assert.Contains(t, st.Message(), "internal server error")
-	assert.Equal(t, codes.Internal, st.Code())
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			
+			listener := bufconn.Listen(1024 * 1024)
+			s := grpc.NewServer()
+			pb.RegisterIncidentServiceServer(s, tc.mockService)
+
+			go func() {
+				_ = s.Serve(listener)
+			}()
+			defer s.Stop()
+
+			dialer := func(context.Context, string) (net.Conn, error) {
+				return listener.Dial()
+			}
+			conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(dialer), grpc.WithInsecure())
+			require.NoError(t, err)
+			defer conn.Close()
+
+			client := &comms.BrainGrpcClient{
+				Conn:   conn,
+				Client: pb.NewIncidentServiceClient(conn),
+			}
+
+			err = client.StreamIncident(ctx, incident)
+
+			if tc.expectErr {
+				require.Error(t, err)
+				st, ok := status.FromError(err)
+				require.True(t, ok)
+				assert.Equal(t, tc.expectedErrCode, st.Code())
+				assert.Contains(t, st.Message(), tc.expectedErrContains)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, tc.mockService.lastIncident)
+				assert.Equal(t, incident.IncidentId, tc.mockService.lastIncident.IncidentId)
+			}
+		})
+	}
 }

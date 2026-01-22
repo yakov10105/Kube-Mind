@@ -32,6 +32,7 @@ import (
 
 	"kube-mind/observer/internal/comms"
 	"kube-mind/observer/internal/config"
+	"kube-mind/observer/internal/domain"
 	"kube-mind/observer/internal/harvester"
 	pb "kube-mind/observer/proto"
 )
@@ -63,7 +64,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 
 	// Filter for non-Running states, specifically CrashLoopBackOff
 	for _, containerStatus := range pod.Status.ContainerStatuses {
-		if containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Reason == "CrashLoopBackOff" {
+		if containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Reason == domain.ReasonCrashLoopBackOff {
 			log.Info("Pod entered CrashLoopBackOff", "pod", pod.Name, "namespace", pod.Namespace, "container", containerStatus.Name)
 
 			incidentKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerStatus.Name)
@@ -76,7 +77,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 			r.IncidentCache.AddOrUpdate(incidentKey, true, r.Config.DebounceTTLSeconds)
 
 			// Harvest logs
-			logs, err := r.LogAggregator.GetLogs(ctx, pod.Namespace, pod.Name, containerStatus.Name, 200) // Last 200 lines
+			logs, err := r.LogAggregator.GetLogs(ctx, pod.Namespace, pod.Name, containerStatus.Name, domain.DefaultLogTailLines) // Last 200 lines
 			if err != nil {
 				log.Error(err, "failed to get pod logs", "pod", pod.Name, "container", containerStatus.Name)
 				return ctrl.Result{}, err

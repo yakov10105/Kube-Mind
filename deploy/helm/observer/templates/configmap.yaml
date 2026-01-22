@@ -7,3 +7,9 @@ metadata:
 data:
   LOG_LEVEL: {{ .Values.config.logLevel | quote }}
   DEBOUNCE_TTL_SECONDS: {{ .Values.config.debounceTTLSeconds | quote }}
+  LEADER_ELECTION_NAMESPACE: {{ .Values.config.leaderElectionNamespace | default .Release.Namespace | quote }}
+  LEADER_ELECTION_ID: {{ .Values.config.leaderElectionID | quote }}
+  LEADER_ELECTION_RESOURCE_LOCK: {{ .Values.config.leaderElectionResourceLock | quote }}
+  LEADER_ELECTION_LEASE_DURATION: {{ .Values.config.leaderElectionLeaseDuration | quote }}
+  LEADER_ELECTION_RENEW_DEADLINE: {{ .Values.config.leaderElectionRenewDeadline | quote }}
+  LEADER_ELECTION_RETRY_PERIOD: {{ .Values.config.leaderElectionRetryPeriod | quote }}

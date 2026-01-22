@@ -2,6 +2,7 @@ package harvester_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -12,19 +13,25 @@ import (
 )
 
 type mockManifestFetcher struct {
-	getPodManifestFunc      func(ctx context.Context, namespace, name string) (string, error)
+	getPodManifestFunc        func(ctx context.Context, namespace, name string) (string, error)
 	getDeploymentManifestFunc func(ctx context.Context, namespace, name string) (string, error)
 }
 
 func (m *mockManifestFetcher) GetPodManifest(ctx context.Context, namespace, name string) (string, error) {
-	return m.getPodManifestFunc(ctx, namespace, name)
+	if m.getPodManifestFunc != nil {
+		return m.getPodManifestFunc(ctx, namespace, name)
+	}
+	return "", errors.New("GetPodManifest not implemented")
 }
-
 func (m *mockManifestFetcher) GetDeploymentManifest(ctx context.Context, namespace, name string) (string, error) {
-	return m.getDeploymentManifestFunc(ctx, namespace, name)
+	if m.getDeploymentManifestFunc != nil {
+		return m.getDeploymentManifestFunc(ctx, namespace, name)
+	}
+	return "", errors.New("GetDeploymentManifest not implemented")
 }
 
 func TestRegexRedactionEngine_Redact(t *testing.T) {
+	t.Parallel()
 	engine, err := harvester.NewRegexRedactionEngine()
 	require.NoError(t, err)
 
@@ -34,48 +41,24 @@ func TestRegexRedactionEngine_Redact(t *testing.T) {
 		expectedRedacted string
 	}{
 		{
-			name: "redact secret",
-			manifest: `{
-				"name": "MY_APP_SECRET",
-				"value": "supersecretvalue"
-			}`,
-			expectedRedacted: `{
-				"name": "MY_APP_SECRET",
-				"value": "[REDACTED]"
-			}`,
+			name:             "redact secret",
+			manifest:         `{"name": "MY_APP_SECRET", "value": "supersecretvalue"}`,
+			expectedRedacted: `{"name": "MY_APP_SECRET", "value": "[REDACTED]"}`,
 		},
 		{
-			name: "redact token",
-			manifest: `{
-				"name": "API_TOKEN",
-				"value": "token-12345"
-			}`,
-			expectedRedacted: `{
-				"name": "API_TOKEN",
-				"value": "[REDACTED]"
-			}`,
+			name:             "redact token",
+			manifest:         `{"name": "API_TOKEN", "value": "token-12345"}`,
+			expectedRedacted: `{"name": "API_TOKEN", "value": "[REDACTED]"}`,
 		},
 		{
-			name: "redact key",
-			manifest: `{
-				"name": "PRIVATE_KEY",
-				"value": "private-key-data"
-			}`,
-			expectedRedacted: `{
-				"name": "PRIVATE_KEY",
-				"value": "[REDACTED]"
-			}`,
+			name:             "redact key",
+			manifest:         `{"name": "PRIVATE_KEY", "value": "private-key-data"}`,
+			expectedRedacted: `{"name": "PRIVATE_KEY", "value": "[REDACTED]"}`,
 		},
 		{
-			name: "redact password",
-			manifest: `{
-				"name": "DB_PASSWORD",
-				"value": "password123"
-			}`,
-			expectedRedacted: `{
-				"name": "DB_PASSWORD",
-				"value": "[REDACTED]"
-			}`,
+			name:             "redact password with different casing",
+			manifest:         `{"name": "db_password", "value": "password123"}`,
+			expectedRedacted: `{"name": "db_password", "value": "[REDACTED]"}`,
 		},
 		{
 			name:             "no redaction needed",
@@ -84,91 +67,80 @@ func TestRegexRedactionEngine_Redact(t *testing.T) {
 		},
 	}
 
-	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
-			// Normalize JSON strings for comparison
-			tt.manifest = strings.ReplaceAll(strings.ReplaceAll(tt.manifest, "\n", ""), "\t", "")
-			tt.expectedRedacted = strings.ReplaceAll(strings.ReplaceAll(tt.expectedRedacted, "\n", ""), "\t", "")
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			
+			// Normalize JSON strings by removing whitespace
+			manifest := strings.ReplaceAll(tc.manifest, " ", "")
+			expected := strings.ReplaceAll(tc.expectedRedacted, " ", "")
 
-			redacted, err := engine.Redact(tt.manifest)
+			redacted, err := engine.Redact(manifest)
 			require.NoError(t, err)
-			assert.JSONEq(t, tt.expectedRedacted, redacted)
+			assert.JSONEq(t, expected, redacted)
 		})
 	}
 }
 
 func TestManifestParser_GetAndRedactPodManifest(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	namespace := "default"
-	podName := "test-pod"
 
-	unredactedManifest := `{
-		"apiVersion": "v1",
-		"kind": "Pod",
-		"metadata": {
-			"name": "test-pod"
+	unredactedManifest := `{"env": [{"name": "MY_APP_SECRET", "value": "supersecretvalue"}]}`
+	redactedManifest := `{"env": [{"name": "MY_APP_SECRET", "value": "[REDACTED]"}]}`
+
+	testCases := []struct {
+		name                string
+		fetcher             harvester.ManifestFetcher
+		expectErr           bool
+		expectedErrContains string
+		expectedManifest    string
+	}{
+		{
+			name: "Successful fetch and redact",
+			fetcher: &mockManifestFetcher{
+				getPodManifestFunc: func(ctx context.Context, namespace, name string) (string, error) {
+					return unredactedManifest, nil
+				},
+			},
+			expectErr:        false,
+			expectedManifest: redactedManifest,
 		},
-		"spec": {
-			"containers": [
-				{
-					"name": "test-container",
-					"image": "nginx",
-					"env": [
-						{
-							"name": "MY_APP_SECRET",
-							"value": "supersecretvalue"
-						},
-						{
-							"name": "MY_APP_SETTING",
-							"value": "somevalue"
-						}
-					]
-				}
-			]
-		}
-	}`
-
-	redactedManifest := `{
-		"apiVersion": "v1",
-		"kind": "Pod",
-		"metadata": {
-			"name": "test-pod"
-		},
-		"spec": {
-			"containers": [
-				{
-					"name": "test-container",
-					"image": "nginx",
-					"env": [
-						{
-							"name": "MY_APP_SECRET",
-							"value": "[REDACTED]"
-						},
-						{
-							"name": "MY_APP_SETTING",
-							"value": "somevalue"
-						}
-					]
-				}
-			]
-		}
-	}`
-
-	fetcher := &mockManifestFetcher{
-		getPodManifestFunc: func(ctx context.Context, namespace, name string) (string, error) {
-			return unredactedManifest, nil
+		{
+			name: "Error on fetch",
+			fetcher: &mockManifestFetcher{
+				getPodManifestFunc: func(ctx context.Context, namespace, name string) (string, error) {
+					return "", errors.New("fetch error")
+				},
+			},
+			expectErr:           true,
+			expectedErrContains: "fetch error",
 		},
 	}
 
-	redactor, err := harvester.NewRegexRedactionEngine()
-	require.NoError(t, err)
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			
+			redactor, err := harvester.NewRegexRedactionEngine()
+			require.NoError(t, err)
+			
+			parser := &harvester.ManifestParser{
+				Fetcher:  tc.fetcher,
+				Redactor: redactor,
+			}
 
-	parser := &harvester.ManifestParser{
-		Fetcher:  fetcher,
-		Redactor: redactor,
+			result, err := parser.GetAndRedactPodManifest(ctx, "default", "test-pod")
+
+			if tc.expectErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrContains)
+			} else {
+				require.NoError(t, err)
+				assert.JSONEq(t, tc.expectedManifest, result)
+			}
+		})
 	}
-
-	result, err := parser.GetAndRedactPodManifest(ctx, namespace, podName)
-	require.NoError(t, err)
-	assert.JSONEq(t, redactedManifest, result)
 }

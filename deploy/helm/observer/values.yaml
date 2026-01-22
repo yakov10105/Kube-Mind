@@ -14,12 +14,18 @@ serviceAccount:
 config:
   logLevel: "info"
   debounceTTLSeconds: "300"
+  leaderElectionID: "19767522.tutorial.kubebuilder.io"
+  leaderElectionResourceLock: "leases"
+  leaderElectionLeaseDuration: "15s"
+  leaderElectionRenewDeadline: "10s"
+  leaderElectionRetryPeriod: "2s"
 
 grpc:
   serverAddress: "kube-mind-brain:50051" # Default to internal service address
   caCertPath: "/etc/certs/ca.crt"         # Path within the pod for CA cert
   clientCertPath: "/etc/certs/tls.crt"    # Path within the pod for client cert
   clientKeyPath: "/etc/certs/tls.key"     # Path within the pod for client key
+  insecure: false # Set to true for local development without mTLS
 
 service:
   type: ClusterIP

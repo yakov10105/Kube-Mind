@@ -17,13 +17,15 @@ rules:
   - list
   - watch
 - apiGroups:
-  - apps
+  - coordination.k8s.io
   resources:
-  - deployments
-  - replicasets
+  - leases
   verbs:
   - get
   - list
+  - update
+  - create
+  - patch
   - watch
 - apiGroups:
   - monitoring.coreos.com

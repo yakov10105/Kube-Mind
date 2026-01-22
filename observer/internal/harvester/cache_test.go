@@ -7,50 +7,87 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	go_cache "github.com/patrickmn/go-cache" // Alias to avoid conflict with local 'cache' variable
+	go_cache "github.com/patrickmn/go-cache"
 
 	"kube-mind/observer/internal/harvester"
 )
 
-func TestGoCacheIntelligenceCache_AddOrUpdate_Get(t *testing.T) {
-	defaultExpiration := 50 * time.Millisecond
-	cleanupInterval := 10 * time.Millisecond
-	cache := harvester.NewGoCacheIntelligenceCache(defaultExpiration, cleanupInterval)
+func TestGoCacheIntelligenceCache(t *testing.T) {
+	t.Parallel()
 
-	key := "test-key"
-	value := "test-value"
+	testCases := []struct {
+		name              string
+		key               string
+		value             interface{}
+		ttl               time.Duration
+		defaultExpiration time.Duration
+		cleanupInterval   time.Duration
+		expectFound       bool
+		waitForExpiration bool
+	}{
+		{
+			name:              "Set and Get item with default expiration",
+			key:               "key1",
+			value:             "value1",
+			ttl:               go_cache.DefaultExpiration,
+			defaultExpiration: 100 * time.Millisecond,
+			cleanupInterval:   10 * time.Millisecond,
+			expectFound:       true,
+		},
+		{
+			name:              "Item expires after TTL",
+			key:               "key2",
+			value:             "value2",
+			ttl:               50 * time.Millisecond,
+			defaultExpiration: 1 * time.Minute,
+			cleanupInterval:   10 * time.Millisecond,
+			expectFound:       false,
+			waitForExpiration: true,
+		},
+		{
+			name:              "Item with no expiration",
+			key:               "key3",
+			value:             42,
+			ttl:               go_cache.NoExpiration,
+			defaultExpiration: 50 * time.Millisecond,
+			cleanupInterval:   10 * time.Millisecond,
+			expectFound:       true,
+		},
+		{
+			name:              "Get non-existent item",
+			key:               "non-existent",
+			value:             nil,
+			ttl:               go_cache.DefaultExpiration,
+			defaultExpiration: 1 * time.Minute,
+			cleanupInterval:   10 * time.Millisecond,
+			expectFound:       false,
+		},
+	}
 
-	// Test AddOrUpdate and Get
-	cache.AddOrUpdate(key, value, go_cache.DefaultExpiration)
-	retrieved, found := cache.Get(key)
-	require.True(t, found)
-	assert.Equal(t, value, retrieved)
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Test item expiration
-	time.Sleep(defaultExpiration + cleanupInterval + (10 * time.Millisecond)) // Wait for item to expire and cleanup to run
-	_, found = cache.Get(key)
-	assert.False(t, found)
+			cache := harvester.NewGoCacheIntelligenceCache(tc.defaultExpiration, tc.cleanupInterval)
 
-	// Test updating an item
-	newValue := "new-test-value"
-	cache.AddOrUpdate(key, "original-value", go_cache.DefaultExpiration)
-	cache.AddOrUpdate(key, newValue, go_cache.NoExpiration)
-	retrieved, found = cache.Get(key)
-	require.True(t, found)
-	assert.Equal(t, newValue, retrieved)
-}
+			// Add item unless we are testing for a non-existent key
+			if tc.value != nil {
+				cache.AddOrUpdate(tc.key, tc.value, tc.ttl)
+			}
 
-func TestGoCacheIntelligenceCache_NoExpiration(t *testing.T) {
-	cache := harvester.NewGoCacheIntelligenceCache(go_cache.NoExpiration, 0)
+			if tc.waitForExpiration {
+				time.Sleep(tc.ttl + tc.cleanupInterval + 10*time.Millisecond)
+			}
 
-	key := "permanent-key"
-	value := "permanent-value"
+			retrieved, found := cache.Get(tc.key)
 
-	cache.AddOrUpdate(key, value, go_cache.NoExpiration)
-
-	// Should not expire
-	time.Sleep(100 * time.Millisecond) // A short sleep to ensure no accidental expiration
-	retrieved, found := cache.Get(key)
-	require.True(t, found)
-	assert.Equal(t, value, retrieved)
+			if tc.expectFound {
+				require.True(t, found)
+				assert.Equal(t, tc.value, retrieved)
+			} else {
+				assert.False(t, found)
+			}
+		})
+	}
 }

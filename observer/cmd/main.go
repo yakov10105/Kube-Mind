@@ -65,6 +65,7 @@ func main() {
 	var enableHTTP2 bool
 	var grpcServerAddress string
 	var grpcCaCertPath, grpcClientCertPath, grpcClientKeyPath string
+	var grpcInsecure bool
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -87,6 +88,7 @@ func main() {
 	flag.StringVar(&grpcCaCertPath, "grpc-ca-cert", "", "Path to the gRPC CA certificate.")
 	flag.StringVar(&grpcClientCertPath, "grpc-client-cert", "", "Path to the gRPC client certificate.")
 	flag.StringVar(&grpcClientKeyPath, "grpc-client-key", "", "Path to the gRPC client key.")
+	flag.BoolVar(&grpcInsecure, "grpc-insecure", false, "If set, connect to the gRPC server without mTLS (for local development).")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -188,7 +190,12 @@ func main() {
 		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "19767522.tutorial.kubebuilder.io",
+		LeaderElectionID:       cfg.LeaderElectionID,
+		LeaderElectionResourceLock: cfg.LeaderElectionResourceLock,
+		LeaderElectionNamespace: cfg.LeaderElectionNamespace,
+		LeaseDuration:           &cfg.LeaderElectionLeaseDuration,
+		RenewDeadline:           &cfg.LeaderElectionRenewDeadline,
+		RetryPeriod:             &cfg.LeaderElectionRetryPeriod,
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
 		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
@@ -221,7 +228,7 @@ func main() {
 	incidentCache := harvester.NewGoCacheIntelligenceCache(cfg.DebounceTTLSeconds, cfg.DebounceTTLSeconds/2) // Cleanup half as often as expiration
 
 	// Initialize gRPC client
-	grpcClient, err := comms.NewBrainGrpcClient(ctrl.SetupSignalHandler(), grpcServerAddress, grpcCaCertPath, grpcClientCertPath, grpcClientKeyPath)
+	grpcClient, err := comms.NewBrainGrpcClient(ctrl.SetupSignalHandler(), grpcServerAddress, grpcInsecure, grpcCaCertPath, grpcClientCertPath, grpcClientKeyPath)
 	if err != nil {
 		setupLog.Error(err, "unable to create gRPC client")
 		os.Exit(1)
