@@ -40,12 +40,12 @@ import (
 // PodReconciler reconciles a Pod object
 type PodReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	LogAggregator   harvester.LogAggregator
-	ManifestParser  *harvester.ManifestParser
-	IncidentCache   harvester.IntelligenceCache
-	GrpcClient      comms.GrpcClient
-	Config          *config.ControllerConfig
+	Scheme         *runtime.Scheme
+	LogAggregator  harvester.LogAggregator
+	ManifestParser *harvester.ManifestParser
+	IncidentCache  harvester.IntelligenceCache
+	GrpcClient     comms.GrpcClient
+	Config         *config.ControllerConfig
 }
 
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;update;patch;delete

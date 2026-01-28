@@ -25,6 +25,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -34,11 +35,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
-	"go.uber.org/zap/zapcore"
 
 	"kube-mind/observer/internal/comms"
-	"kube-mind/observer/internal/controller"
 	observerconfig "kube-mind/observer/internal/config"
+	"kube-mind/observer/internal/controller"
 	"kube-mind/observer/internal/harvester"
 	// +kubebuilder:scaffold:imports
 )
@@ -185,17 +185,17 @@ func main() {
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		Metrics:                metricsServerOptions,
-		WebhookServer:          webhookServer,
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       cfg.LeaderElectionID,
+		Scheme:                     scheme,
+		Metrics:                    metricsServerOptions,
+		WebhookServer:              webhookServer,
+		HealthProbeBindAddress:     probeAddr,
+		LeaderElection:             enableLeaderElection,
+		LeaderElectionID:           cfg.LeaderElectionID,
 		LeaderElectionResourceLock: cfg.LeaderElectionResourceLock,
-		LeaderElectionNamespace: cfg.LeaderElectionNamespace,
-		LeaseDuration:           &cfg.LeaderElectionLeaseDuration,
-		RenewDeadline:           &cfg.LeaderElectionRenewDeadline,
-		RetryPeriod:             &cfg.LeaderElectionRetryPeriod,
+		LeaderElectionNamespace:    cfg.LeaderElectionNamespace,
+		LeaseDuration:              &cfg.LeaderElectionLeaseDuration,
+		RenewDeadline:              &cfg.LeaderElectionRenewDeadline,
+		RetryPeriod:                &cfg.LeaderElectionRetryPeriod,
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
 		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
@@ -240,13 +240,13 @@ func main() {
 	}()
 
 	if err = (&controller.PodReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		LogAggregator: logAggregator,
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		LogAggregator:  logAggregator,
 		ManifestParser: manifestParser,
-		IncidentCache: incidentCache,
-		GrpcClient: grpcClient,
-		Config: cfg,
+		IncidentCache:  incidentCache,
+		GrpcClient:     grpcClient,
+		Config:         cfg,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Pod")
 		os.Exit(1)

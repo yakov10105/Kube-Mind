@@ -68,7 +68,6 @@ func (f *K8sManifestFetcher) GetDeploymentManifest(ctx context.Context, namespac
 	return string(jsonBytes), nil
 }
 
-
 // RedactionEngine defines an interface for redacting sensitive data.
 type RedactionEngine interface {
 	Redact(manifest string) (string, error)

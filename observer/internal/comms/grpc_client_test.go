@@ -52,9 +52,9 @@ func TestBrainGrpcClient_StreamIncident(t *testing.T) {
 		expectedErrContains string
 	}{
 		{
-			name:            "Successful stream",
-			mockService:     &mockIncidentService{},
-			expectErr:       false,
+			name:        "Successful stream",
+			mockService: &mockIncidentService{},
+			expectErr:   false,
 		},
 		{
 			name: "Stream error from server",
@@ -71,7 +71,7 @@ func TestBrainGrpcClient_StreamIncident(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			
+
 			listener := bufconn.Listen(1024 * 1024)
 			s := grpc.NewServer()
 			pb.RegisterIncidentServiceServer(s, tc.mockService)

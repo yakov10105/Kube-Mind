@@ -1,4 +1,4 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -17,6 +17,8 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{6E0F777F-5BB8-4D4A-9CF6-EED9999C1F39}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KubeMind.Brain.Tests", "brain\tests\KubeMind.Brain.Tests\KubeMind.Brain.Tests.csproj", "{BA8FD36A-5350-8937-0E5F-0D8A8276DC0C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KubeMind.Brain.Shared", "brain\src\KubeMind.Brain.Shared\KubeMind.Brain.Shared.csproj", "{3F6A1BE1-CADC-4D21-B092-C7A2E8E30D6A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -44,6 +46,10 @@ Global
 		{BA8FD36A-5350-8937-0E5F-0D8A8276DC0C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BA8FD36A-5350-8937-0E5F-0D8A8276DC0C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BA8FD36A-5350-8937-0E5F-0D8A8276DC0C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3F6A1BE1-CADC-4D21-B092-C7A2E8E30D6A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3F6A1BE1-CADC-4D21-B092-C7A2E8E30D6A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3F6A1BE1-CADC-4D21-B092-C7A2E8E30D6A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3F6A1BE1-CADC-4D21-B092-C7A2E8E30D6A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -56,6 +62,7 @@ Global
 		{BB0E5BC9-6032-C9ED-A27B-508F420CB6EF} = {08BD92A6-75AA-182B-C987-EFFB1CA66FD7}
 		{6E0F777F-5BB8-4D4A-9CF6-EED9999C1F39} = {96330FD0-B690-4E26-827F-0AA60776130B}
 		{BA8FD36A-5350-8937-0E5F-0D8A8276DC0C} = {6E0F777F-5BB8-4D4A-9CF6-EED9999C1F39}
+		{3F6A1BE1-CADC-4D21-B092-C7A2E8E30D6A} = {08BD92A6-75AA-182B-C987-EFFB1CA66FD7}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {5657D30A-F928-46D5-A4E6-1FEBC9F0BB36}

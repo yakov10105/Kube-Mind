@@ -25,11 +25,11 @@ func NewGoCacheIntelligenceCache(defaultExpiration, cleanupInterval time.Duratio
 }
 
 // AddOrUpdate adds or updates an item in the cache with a specific TTL.
-func (c *GoCacheIntelligenceCache) AddOrUpdate(key string, obj interface{}, ttl time.Duration) {
+func (c *GoCacheIntelligenceCache) AddOrUpdate(key string, obj any, ttl time.Duration) {
 	c.cache.Set(key, obj, ttl)
 }
 
 // Get retrieves an item from the cache.
-func (c *GoCacheIntelligenceCache) Get(key string) (interface{}, bool) {
+func (c *GoCacheIntelligenceCache) Get(key string) (any, bool) {
 	return c.cache.Get(key)
 }

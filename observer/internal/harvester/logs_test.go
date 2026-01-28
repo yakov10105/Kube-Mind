@@ -18,10 +18,10 @@ func TestK8sLogAggregator_GetLogs_TableDriven(t *testing.T) {
 	ctx := context.Background()
 
 	testCases := []struct {
-		name         string
-		mockStream   func() (io.ReadCloser, error)
-		expectedLogs string
-		expectErr    bool
+		name                string
+		mockStream          func() (io.ReadCloser, error)
+		expectedLogs        string
+		expectErr           bool
 		expectedErrContains string
 	}{
 		{
@@ -54,13 +54,13 @@ func TestK8sLogAggregator_GetLogs_TableDriven(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			
+
 			mockStreamer := &mockPodLogStreamer{
 				streamFunc: func(ctx context.Context, namespace, podName, containerName string, tailLines *int64) (io.ReadCloser, error) {
 					return tc.mockStream()
 				},
 			}
-			
+
 			aggregator := harvester.NewK8sLogAggregatorWithStreamer(mockStreamer)
 
 			logs, err := aggregator.GetLogs(ctx, "default", "test-pod", "test-container", 100)

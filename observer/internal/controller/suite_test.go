@@ -59,6 +59,8 @@ var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(context.TODO())
 
 	var err error
+	// NOTE: The following line was added to register core Kubernetes types.
+	// This is required for the controller to interact with objects like Pods and Events.
 	err = corev1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -70,7 +72,9 @@ var _ = BeforeSuite(func() {
 		ErrorIfCRDPathMissing: false,
 	}
 
+	// NOTE: The following block was added to improve the developer experience.
 	// Retrieve the first found binary directory to allow running tests from IDEs
+	// without needing to export KUBEBUILDER_ASSETS.
 	if getFirstFoundEnvTestBinaryDir() != "" {
 		testEnv.BinaryAssetsDirectory = getFirstFoundEnvTestBinaryDir()
 	}
@@ -93,6 +97,8 @@ var _ = AfterSuite(func() {
 	}, time.Minute, time.Second).Should(Succeed())
 })
 
+// NOTE: This is a new helper function not included in the default Kubebuilder scaffold.
+// Its purpose is to make running tests from an IDE more convenient.
 // getFirstFoundEnvTestBinaryDir locates the first binary in the specified path.
 // ENVTEST-based tests depend on specific binaries, usually located in paths set by
 // controller-runtime. When running tests directly (e.g., via an IDE) without using

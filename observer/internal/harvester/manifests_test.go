@@ -71,7 +71,7 @@ func TestRegexRedactionEngine_Redact(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			
+
 			// Normalize JSON strings by removing whitespace
 			manifest := strings.ReplaceAll(tc.manifest, " ", "")
 			expected := strings.ReplaceAll(tc.expectedRedacted, " ", "")
@@ -123,10 +123,10 @@ func TestManifestParser_GetAndRedactPodManifest(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			
+
 			redactor, err := harvester.NewRegexRedactionEngine()
 			require.NoError(t, err)
-			
+
 			parser := &harvester.ManifestParser{
 				Fetcher:  tc.fetcher,
 				Redactor: redactor,

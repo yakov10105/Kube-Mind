@@ -6,6 +6,8 @@ import (
 	"io"
 	"strings"
 
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -23,7 +25,7 @@ type K8sPodLogStreamer struct {
 
 // StreamPodLogs implements PodLogStreamer for actual Kubernetes API calls.
 func (s *K8sPodLogStreamer) StreamPodLogs(ctx context.Context, namespace, podName, containerName string, tailLines *int64) (io.ReadCloser, error) {
-podLogOptions := &corev1.PodLogOptions{
+	podLogOptions := &corev1.PodLogOptions{
 		Container: containerName,
 		TailLines: tailLines,
 	}
@@ -48,8 +50,8 @@ func NewK8sLogAggregator(config *rest.Config) (*K8sLogAggregator, error) {
 		return nil, fmt.Errorf("failed to create kubernetes clientset: %w", err)
 	}
 	return &K8sLogAggregator{
-		Streamer: &K8sPodLogStreamer{Clientset: clientset},
-	},
+			Streamer: &K8sPodLogStreamer{Clientset: clientset},
+		},
 		nil
 }
 
@@ -63,13 +65,14 @@ func NewK8sLogAggregatorWithStreamer(streamer PodLogStreamer) *K8sLogAggregator 
 
 // GetLogs retrieves the last 'tailLines' of logs for a specific container in a pod.
 func (a *K8sLogAggregator) GetLogs(ctx context.Context, namespace, podName, containerName string, tailLines int64) (string, error) {
-podLogs, err := a.Streamer.StreamPodLogs(ctx, namespace, podName, containerName, &tailLines)
+	podLogs, err := a.Streamer.StreamPodLogs(ctx, namespace, podName, containerName, &tailLines)
 	if err != nil {
 		return "", fmt.Errorf("error in opening stream: %w", err)
 	}
 	defer func() {
+		log := logf.FromContext(ctx)
 		if closeErr := podLogs.Close(); closeErr != nil {
-			fmt.Printf("error closing pod logs stream: %v\n", closeErr) // Log the error, but don't return it to avoid shadowing
+			log.Error(closeErr, "error closing pod logs stream")
 		}
 	}()
 

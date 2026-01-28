@@ -7,14 +7,14 @@ import (
 
 // ControllerConfig holds the configuration for the observer controller.
 type ControllerConfig struct {
-	LogLevel           string
-	DebounceTTLSeconds time.Duration
-	LeaderElectionNamespace      string
-	LeaderElectionID             string
-	LeaderElectionResourceLock   string
-	LeaderElectionLeaseDuration  time.Duration
-	LeaderElectionRenewDeadline  time.Duration
-	LeaderElectionRetryPeriod    time.Duration
+	LogLevel                    string
+	DebounceTTLSeconds          time.Duration
+	LeaderElectionNamespace     string
+	LeaderElectionID            string
+	LeaderElectionResourceLock  string
+	LeaderElectionLeaseDuration time.Duration
+	LeaderElectionRenewDeadline time.Duration
+	LeaderElectionRetryPeriod   time.Duration
 }
 
 // LoadConfig loads configuration from environment variables.
@@ -64,13 +64,13 @@ func LoadConfig() (*ControllerConfig, error) {
 	}
 
 	return &ControllerConfig{
-		LogLevel:           logLevel,
-		DebounceTTLSeconds: debounceTTL,
-		LeaderElectionNamespace:      leaderElectionNamespace,
-		LeaderElectionID:             leaderElectionID,
-		LeaderElectionResourceLock:   leaderElectionResourceLock,
-		LeaderElectionLeaseDuration:  leaseDuration,
-		LeaderElectionRenewDeadline:  renewDeadline,
-		LeaderElectionRetryPeriod:    retryPeriod,
+		LogLevel:                    logLevel,
+		DebounceTTLSeconds:          debounceTTL,
+		LeaderElectionNamespace:     leaderElectionNamespace,
+		LeaderElectionID:            leaderElectionID,
+		LeaderElectionResourceLock:  leaderElectionResourceLock,
+		LeaderElectionLeaseDuration: leaseDuration,
+		LeaderElectionRenewDeadline: renewDeadline,
+		LeaderElectionRetryPeriod:   retryPeriod,
 	}, nil
 }

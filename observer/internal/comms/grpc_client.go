@@ -43,6 +43,11 @@ func NewBrainGrpcClient(ctx context.Context, addr string, useInsecureTransport b
 	if useInsecureTransport {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	} else {
+		// Pre-flight check for required certificate paths when mTLS is enabled.
+		if caCertPath == "" || clientCertPath == "" || clientKeyPath == "" {
+			return nil, fmt.Errorf("mTLS is enabled but one or more certificate paths are missing; please provide --grpc-ca-cert, --grpc-client-cert, and --grpc-client-key, or use --grpc-insecure for local development")
+		}
+
 		// Load the client's certificate and private key
 		clientCert, err := tls.LoadX509KeyPair(clientCertPath, clientKeyPath)
 		if err != nil {
