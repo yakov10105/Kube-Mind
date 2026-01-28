@@ -1,9 +1,12 @@
 using KubeMind.Brain.Api.Services;
 using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.Connectors.Redis;
+using Microsoft.SemanticKernel.Memory;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Formatting.Compact;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 var serviceName = "KubeMind.Brain";
@@ -28,6 +31,26 @@ builder.Services.AddOpenTelemetry()
 
 // Add gRPC services to the container.
 builder.Services.AddGrpc();
+
+// Configure Redis memory store
+var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
+if (string.IsNullOrWhiteSpace(redisConnectionString))
+{
+    // Fallback to the Redis section for non-GetConnectionString methods
+    redisConnectionString = builder.Configuration.GetSection("Redis")["ConnectionString"];
+}
+if (string.IsNullOrWhiteSpace(redisConnectionString))
+{
+    throw new InvalidOperationException("Redis connection string is not configured in ConnectionStrings or Redis section.");
+}
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnectionString));
+builder.Services.AddSingleton<IMemoryStore>(sp =>
+{
+    var database = sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase();
+    return new RedisMemoryStore(database, vectorSize: 1536); // Adjust vectorSize as needed for your embedding model
+});
+
 
 // Add Semantic Kernel to the container.
 var kernelBuilder = builder.Services.AddKernel();

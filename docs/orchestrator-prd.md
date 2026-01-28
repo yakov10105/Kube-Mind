@@ -111,9 +111,9 @@ The Brain operates on a continuous cognitive loop for each incident:
 
 | Task                  | Sub-tasks                                                                       | Definition of Done (DoD)                                                                 |
 | :-------------------- | :------------------------------------------------------------------------------ | :--------------------------------------------------------------------------------------- |
-| **1.1 gRPC Service**  | • Implement `IncidentService` from `.proto`<br>• Setup Proto code-gen for C#    | The service logs incoming Observer payloads to a Serilog sink.                           |
-| **1.2 Kernel Config** | • Register `Kernel` with AI Connectors via DI<br>• Create a `/healthz` endpoint | The `/healthz` endpoint returns 200 and confirms successful API connectivity to the LLM. |
-| **1.3 Observability** | • Add OpenTelemetry middleware & exporters<br>• Configure Serilog for structure | An incoming gRPC call generates a distributed trace visible in Jaeger/Zipkin.            |
+| ✅ **1.1 gRPC Service**  | • Implement `IncidentService` from `.proto`<br>• Setup Proto code-gen for C#    | The service logs incoming Observer payloads to a Serilog sink.                           |
+| ✅ **1.2 Kernel Config** | • Register `Kernel` with AI Connectors via DI<br>• Create a `/healthz` endpoint | The `/healthz` endpoint returns 200 and confirms successful API connectivity to the LLM. |
+| ✅ **1.3 Observability** | • Add OpenTelemetry middleware & exporters<br>• Configure Serilog for structure | An incoming gRPC call generates a distributed trace visible in Jaeger/Zipkin.            |
 
 ### Phase 2: Cognitive Skills & Memory
 
@@ -121,7 +121,7 @@ The Brain operates on a continuous cognitive loop for each incident:
 
 | Task                          | Sub-tasks                                                                        | Definition of Done (DoD)                                                                                                              |
 | :---------------------------- | :------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
-| **2.1 K8s Diagnostic Plugin** | • Create `K8sDiagnosticsPlugin`<br>• Engineer prompts for log/manifest analysis  | The agent can be prompted with an `IncidentContext` and return a structured JSON diagnosis with >90% accuracy on test data.           |
+| ✅ **2.1 K8s Diagnostic Plugin** | • Create `K8sDiagnosticsPlugin`<br>• Engineer prompts for log/manifest analysis  | The agent can be prompted with an `IncidentContext` and return a structured JSON diagnosis with >90% accuracy on test data.           |
 | **2.2 Vector Memory**         | • Implement `IMemoryStore` using Redis<br>• Create a seeding script for runbooks | The agent, when presented with a known error, includes a "similar past incident" link in its analysis.                                |
 | **2.3 Auto-Function Calling** | • Map C# methods to `KernelFunction`<br>• Configure auto-invocation planner      | The agent automatically calls a `KubernetesPlugin.GetPodStatus` function when its plan requires it, without being explicitly told to. |
 
