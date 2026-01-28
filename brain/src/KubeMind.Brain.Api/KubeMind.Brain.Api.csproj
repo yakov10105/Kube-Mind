@@ -4,16 +4,20 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <NoWarn>$(NoWarn);SKEXP0001;NU1603;SKEXP0060</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0" />
-    <PackageReference Include="Microsoft.SemanticKernel" Version="1.70.0" />
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.70.0-preview" />
+    <PackageReference Include="Microsoft.SemanticKernel.Connectors.Redis" Version="1.70.0-preview" />
+    <PackageReference Include="Microsoft.SemanticKernel.Planners.Handlebars" Version="1.47.0-preview" />
     <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.15.0" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.15.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageReference Include="Serilog.Formatting.Compact" Version="3.0.0" />
+    <PackageReference Include="StackExchange.Redis" Version="2.10.1" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.76.0" />
     <PackageReference Include="Google.Protobuf" Version="3.33.4" />
@@ -27,6 +31,7 @@
   <ItemGroup>
     <ProjectReference Include="..\KubeMind.Brain.Application\KubeMind.Brain.Application.csproj" />
     <ProjectReference Include="..\KubeMind.Brain.Shared\KubeMind.Brain.Shared.csproj" />
+    <ProjectReference Include="..\KubeMind.Brain.Infrastructure\KubeMind.Brain.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

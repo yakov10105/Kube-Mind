@@ -2,9 +2,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\KubeMind.Brain.Core\KubeMind.Brain.Core.csproj" />
+    <ProjectReference Include="..\KubeMind.Brain.Application\KubeMind.Brain.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.70.0-preview" />
+    <PackageReference Include="Microsoft.SemanticKernel.Abstractions" Version="1.70.0-preview" />
     <PackageReference Include="Microsoft.SemanticKernel.Connectors.Redis" Version="1.70.0-preview" />
   </ItemGroup>
 
@@ -12,6 +16,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);SKEXP0001;NU1603</NoWarn>
   </PropertyGroup>
 
 </Project>
