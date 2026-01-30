@@ -1,4 +1,6 @@
+using KubeMind.Brain.Api.Telemetry;
 using Azure.Identity;
+using KubeMind.Brain.Api.Logging;
 using KubeMind.Brain.Api.Filters;
 using KubeMind.Brain.Api.Hubs;
 using KubeMind.Brain.Api.Services;
@@ -32,6 +34,7 @@ builder.Host.UseSerilog((context, config) =>
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(serviceName))
     .WithTracing(tracing => tracing
+        .AddSource(KubeMindActivitySource.Name)
         .AddAspNetCoreInstrumentation()
         .AddConsoleExporter()); 
 
