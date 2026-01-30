@@ -19,4 +19,8 @@
     <NoWarn>$(NoWarn);SKEXP0001;NU1603</NoWarn>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="KubeMind.Brain.Tests" />
+  </ItemGroup>
+
 </Project>

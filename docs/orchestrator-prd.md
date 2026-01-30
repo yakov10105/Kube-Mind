@@ -142,9 +142,9 @@ The Brain operates on a continuous cognitive loop for each incident:
 
 | Task                          | Sub-tasks                                                                               | Definition of Done (DoD)                                                                              |
 | :---------------------------- | :-------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------- |
-| **4.1 Cost & Rate Limiting**  | • Implement token-bucket for LLM calls<br>• Add incident de-duplication logic           | A test that sends 100 identical incidents in one minute results in only one new AI analysis workflow. |
-| **4.2 Security Hardening**    | • Manage API keys via Azure Key Vault/HashiCorp Vault<br>• Add PII redaction to logging | All secrets are loaded from a secure vault; no sensitive data is ever written to console logs.        |
-| **4.3 "Polycheck" Guardrail** | • Implement a secondary LLM validation step<br>• Define a schema of "Forbidden Actions" | A unit test shows that a remediation plan containing a "delete" action is successfully blocked.       |
+| ✅ **4.1 Cost & Rate Limiting**  | • Implement token-bucket for LLM calls<br>• Add incident de-duplication logic           | A test that sends 100 identical incidents in one minute results in only one new AI analysis workflow. |
+| ✅ **4.2 Security Hardening**    | • Manage API keys via Azure Key Vault/HashiCorp Vault<br> | All secrets are loaded from a secure vault; no sensitive data is ever written to console logs.        |
+| ✅ **4.3 "Polycheck" Guardrail** | • Implement a secondary LLM validation step<br>• Define a schema of "Forbidden Actions" | A unit test shows that a remediation plan containing a "delete" action is successfully blocked.       |
 
 ---
 

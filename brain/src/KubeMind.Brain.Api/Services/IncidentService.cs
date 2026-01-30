@@ -14,7 +14,7 @@ namespace KubeMind.Brain.Api.Services;
 /// <summary>
 /// Implements the gRPC service for receiving incident data from Observers.
 /// </summary>
-public class IncidentService(ILogger<IncidentService> logger, Kernel kernel, IEnrichmentService enrichmentService, IHubContext<AgentHub> hubContext) : IncidentServiceBase
+public class IncidentService(ILogger<IncidentService> logger, Kernel kernel, IEnrichmentService enrichmentService, IHubContext<AgentHub> hubContext, IIncidentDeduplicationService deduplicationService) : IncidentServiceBase
 {
 
     /// <summary>
@@ -30,6 +30,11 @@ public class IncidentService(ILogger<IncidentService> logger, Kernel kernel, IEn
 
         await foreach (var incident in requestStream.ReadAllAsync(context.CancellationToken))
         {
+            if (await deduplicationService.IsDuplicateAsync(incident.IncidentId, context.CancellationToken))
+            {
+                continue;
+            }
+
             logger.LogInformation(
                 "Received Incident '{IncidentId}' for Pod '{PodName}' in namespace '{Namespace}'. Reason: {Reason}",
                 incident.IncidentId,
@@ -42,7 +47,11 @@ public class IncidentService(ILogger<IncidentService> logger, Kernel kernel, IEn
             var originalGoal = $$$"""
             Analyze the following Kubernetes incident and get the pod's current status.
             Then, provide a structured JSON diagnosis using the K8sDiagnosticsPlugin.AnalyzeIncident function.
-            Based on the diagnosis, propose a fix, and if a fix is identified, create a pull request using the GitOpsPlugin.CreateFixPullRequest function.
+            Based on the diagnosis, propose a fix.
+            Before creating a pull request, you MUST validate the proposed file content using the PolycheckPlugin.IsCodeChangeSafe function.
+            If and only if the safety check returns "YES", create a pull request using the GitOpsPlugin.CreateFixPullRequest function.
+            If the safety check returns "NO", stop execution and report the failure.
+            
             For the pull request, use:
             - repositoryOwner: "your-github-username"
             - repositoryName: "your-test-repo"

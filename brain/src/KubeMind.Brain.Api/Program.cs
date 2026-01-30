@@ -1,3 +1,4 @@
+using Azure.Identity;
 using KubeMind.Brain.Api.Filters;
 using KubeMind.Brain.Api.Hubs;
 using KubeMind.Brain.Api.Services;
@@ -12,6 +13,12 @@ using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 var serviceName = "KubeMind.Brain";
+
+var keyVaultUri = builder.Configuration.GetValue<string>("KeyVaultUri");
+if (!string.IsNullOrEmpty(keyVaultUri))
+{
+    builder.Configuration.AddAzureKeyVault(new Uri(keyVaultUri), new DefaultAzureCredential());
+}
 
 builder.Host.UseSerilog((context, config) =>
 {
@@ -41,6 +48,8 @@ if (string.IsNullOrWhiteSpace(redisConnectionString))
     throw new InvalidOperationException("Redis connection string is not configured in ConnectionStrings or Redis section.");
 }
 
+builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnectionString));
+builder.Services.AddSingleton<IDatabase>(sp => sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase());
 builder.Services.AddRedisVectorStore(redisConnectionString);
 
 var kernelBuilder = builder.Services.AddKernel();
@@ -51,6 +60,9 @@ kernelBuilder.Plugins.AddFromType<KubeMind.Brain.Application.Plugins.K8sDiagnost
 
 builder.Services.AddSingleton<KubeMind.Brain.Application.Plugins.KubernetesPlugin>();
 kernelBuilder.Plugins.AddFromType<KubeMind.Brain.Application.Plugins.KubernetesPlugin>();
+
+builder.Services.AddSingleton<KubeMind.Brain.Application.Plugins.PolycheckPlugin>();
+kernelBuilder.Plugins.AddFromType<KubeMind.Brain.Application.Plugins.PolycheckPlugin>();
 
 var githubToken = builder.Configuration.GetSection("GitHub")["Token"];
 if (string.IsNullOrWhiteSpace(githubToken))
@@ -72,6 +84,9 @@ builder.Services.AddSingleton<KubeMind.Brain.Application.Services.IEnrichmentSer
 
 // Register the Notification Service
 builder.Services.AddHttpClient<KubeMind.Brain.Application.Services.INotificationService, SlackNotificationService>();
+
+// Register the Deduplication Service
+builder.Services.AddSingleton<KubeMind.Brain.Application.Services.IIncidentDeduplicationService, RedisIncidentDeduplicationService>();
 
 var aiConfig = builder.Configuration.GetSection("AIService");
 var serviceType = aiConfig["Type"];
