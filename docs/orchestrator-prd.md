@@ -155,35 +155,35 @@ The Brain operates on a continuous cognitive loop for each incident:
   5.1 Performance: End-to-end AI diagnosis and PR creation should be completed in < 30 seconds (p90).
 
    * Sub-tasks:
-       * 5.1.1 Implement comprehensive tracing and timing: Add detailed OpenTelemetry spans around critical operations
+       * ✅ 5.1.1 Implement comprehensive tracing and timing: Add detailed OpenTelemetry spans around critical operations
          (gRPC ingestion, Redis interactions, LLM calls, GitOps operations) to precisely measure execution time.
-       * 5.1.2 Baseline current performance: Conduct load tests with simulated incidents to establish a baseline for
+       * ✅ 5.1.2 Baseline current performance: Conduct load tests with simulated incidents to establish a baseline for
          end-to-end latency and identify current bottlenecks.
-       * 5.1.3 Optimize LLM interaction patterns: Explore techniques like parallelizing LLM calls (if possible), prompt
+       * ✅ 5.1.3 Optimize LLM interaction patterns: Explore techniques like parallelizing LLM calls (if possible), prompt
          engineering for efficiency, or leveraging smaller, faster LLMs for specific sub-tasks.
-       * 5.1.4 Optimize data serialization/deserialization: Profile and optimize JSON serialization/deserialization of
+       * ✅ 5.1.4 Optimize data serialization/deserialization: Profile and optimize JSON serialization/deserialization of
          IncidentContext and other data transfer objects, potentially using System.Text.Json source generators or
          Span<T>.
-       * 5.1.5 Analyze and optimize Redis queries: Ensure all Redis interactions are efficient, leveraging appropriate
+       * ✅ 5.1.5 Analyze and optimize Redis queries: Ensure all Redis interactions are efficient, leveraging appropriate
          data structures and commands (e.g., pipeline commands for multiple operations).
-       * 5.1.6 Refine GitOps operations: Review and optimize calls to Octokit.NET to minimize API calls and latency,
+       * ✅ 5.1.6 Refine GitOps operations: Review and optimize calls to Octokit.NET to minimize API calls and latency,
          potentially by batching changes.
-       * 5.1.7 Implement performance testing in CI: Integrate automated performance tests into the CI/CD pipeline to
+       * ✅ 5.1.7 Implement performance testing in CI: Integrate automated performance tests into the CI/CD pipeline to
          continuously monitor the 30-second p90 objective.
 
   5.2 Extensibility: Adding a new `Plugin` or `Skill` should require minimal boilerplate, discoverable via assembly
   scanning and DI. New Git providers or notification systems should be implementable via a clean interface.
 
    * Sub-tasks:
-       * 5.2.1 Document plugin creation workflow: Create clear documentation (CONTRIBUTING.md) outlining the steps and
+       * ✅ 5.2.1 Document plugin creation workflow: Create clear documentation (CONTRIBUTING.md) outlining the steps and
          minimal boilerplate required to add a new Semantic Kernel plugin.
-       * 5.2.2 Abstract GitHubService: Ensure IGitHubService is fully abstracted, allowing for alternative Git providers
+       * ✅ 5.2.2 Abstract GitHubService: Ensure IGitHubService is fully abstracted, allowing for alternative Git providers
          (e.g., GitLab, Azure DevOps) to be implemented by simply creating new concrete classes.
-       * 5.2.3 Abstract NotificationService: Verify INotificationService provides sufficient abstraction so new
+       * ✅ 5.2.3 Abstract NotificationService: Verify INotificationService provides sufficient abstraction so new
          notification platforms (e.g., Microsoft Teams, PagerDuty) can be added with minimal changes to core logic.
-       * 5.2.4 Implement dynamic plugin loading: Ensure plugins are discovered and loaded at runtime via assembly
+       * ✅ 5.2.4 Implement dynamic plugin loading: Ensure plugins are discovered and loaded at runtime via assembly
          scanning or a similar mechanism, minimizing explicit code changes in Program.cs for new plugins.
-       * 5.2.5 Create a template for new plugins: Provide a simple template or example plugin that new developers can
+       * ✅ 5.2.5 Create a template for new plugins: Provide a simple template or example plugin that new developers can
          copy and modify, demonstrating the minimal boilerplate.
 
   5.3 Auditability & Explainability: Every automated action must be traceable to a specific incident, a specific chain

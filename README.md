@@ -48,7 +48,7 @@ sequenceDiagram
         Observer (Go Controller)->>K8s API Server: Get Pod Logs
         Observer (Go Controller)->>K8s API Server: Get Related Events
         Observer (Go Controller)->>Observer (Go Controller): Harvest & Redact Data
-        Observer (Go Controller)-_>>Brain (.NET gRPC Service): StreamIncident(IncidentContext)
+        Observer (Go Controller)-->>Brain (.NET gRPC Service): StreamIncident(IncidentContext)
     end
 
     rect rgb(230, 255, 230)
@@ -70,7 +70,7 @@ sequenceDiagram
     participant Brain (gRPC Server)
     participant Redis (Vector DB)
     participant Semantic Kernel (AI Orchestrator)
-    participant LLM (GPT-4o, etc.)
+    participant LLM
     participant Tool Plugins
     participant Git Repository (GitHub)
     participant UI (SignalR)
@@ -197,22 +197,70 @@ The Brain service requires several configuration values to be set up.
 
 ## 📂 Project Structure
 
+
+
 The monorepo is organized to keep the two main services and their shared components distinct but easy to manage.
 
-```
-/
-├── /brain                # .NET "Brain" Service
-│   ├── src/              # Source code for API, Application, Infrastructure layers
-│   └── tests/            # Unit and integration tests
-├── /deploy               # Helm charts and other deployment manifests
-├── /docs                 # Product Requirements Documents (PRDs)
-├── /observer             # Go "Observer" Service
-│   ├── internal/         # Internal controller and business logic
-│   └── cmd/              # Main application entry point
-├── /proto                # Shared gRPC/Protobuf definitions
-└── /scripts              # Utility and code-generation scripts
+
+
 ```
 
+/
+
+├── /brain                # .NET "Brain" Service
+
+│   ├── src/              # Source code for API, Application, Infrastructure layers
+
+│   └── tests/            # Unit and integration tests
+
+├── /deploy               # Helm charts and other deployment manifests
+
+├── /docs                 # Product Requirements Documents (PRDs)
+
+├── /observer             # Go "Observer" Service
+
+│   ├── internal/         # Internal controller and business logic
+
+│   └── cmd/              # Main application entry point
+
+├── /proto                # Shared gRPC/Protobuf definitions
+
+└── /scripts              # Utility and code-generation scripts
+
+```
+
+
+
+## 📈 Performance Testing
+
+
+
+While full CI/CD integration is outside the scope of this repository, a placeholder script (`scripts/run-performance-tests.sh`) is provided as a starting point for implementing automated performance tests. This script outlines the steps for:
+
+
+
+- Starting the Kube-Mind Brain service.
+
+- Deploying a test Kubernetes cluster (e.g., `kind`).
+
+- Deploying the Kube-Mind Observer to the test cluster.
+
+- Injecting a configurable load of simulated incidents.
+
+- Monitoring and collecting performance metrics.
+
+- Asserting against performance Service Level Objectives (SLOs).
+
+- Generating a performance report.
+
+
+
+It is recommended to integrate such a script into your CI/CD pipeline to continuously monitor the platform's end-to-end performance.
+
+
+
 ## 🤝 Contributing
+
+
 
 Contributions are welcome! Please feel free to open an issue or submit a pull request. (A more detailed contribution guide will be added soon).

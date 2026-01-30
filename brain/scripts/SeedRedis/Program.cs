@@ -1,5 +1,4 @@
-﻿using Microsoft.SemanticKernel.Memory;
-using Microsoft.SemanticKernel.Embeddings;
+using Microsoft.SemanticKernel.Memory;
 using Microsoft.SemanticKernel.Connectors.Redis;
 using Microsoft.SemanticKernel;
 using Microsoft.Extensions.Configuration;
@@ -7,6 +6,9 @@ using StackExchange.Redis;
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using Microsoft.SemanticKernel.Connectors.OpenAI;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 
 #pragma warning disable SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates.
 
@@ -47,7 +49,7 @@ public class Program
         var kernel = Kernel.CreateBuilder()
             .AddOpenAIEmbeddingGenerator(modelId, apiKey)
             .Build();
-        var textEmbeddingGeneration = kernel.GetRequiredService<ITextEmbeddingGenerationService>();
+        var embeddingGenerator = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
 
         Console.WriteLine("Connecting to Redis...");
         var redis = await ConnectionMultiplexer.ConnectAsync(redisConnectionString);
@@ -66,20 +68,18 @@ public class Program
             ("incident-similar-2", "Past Incident: Pod 'cart-service-5f7b8f8f8-f8f8f' in 'staging' went into CrashLoopBackOff. The logs showed a 'System.NullReferenceException' at startup. A missing environment variable was the root cause.")
         };
 
-        for(int i=0; i<memories.Length; i++)
+        foreach (var (id, text) in memories)
         {
-            var (id, text) = memories[i];
-            var embedding = await textEmbeddingGeneration.GenerateEmbeddingAsync(text);
             var memoryRecord = new MemoryRecord(
                 metadata: new MemoryRecordMetadata(
                     isReference: false,
                     id: id,
                     text: text,
-                    description: null,
+                    description: string.Empty,
                     externalSourceName: "SeedScript",
-                    additionalMetadata: null
+                    additionalMetadata: string.Empty
                 ),
-                embedding: embedding,
+                embedding: (await embeddingGenerator.GenerateAsync(new[] { text })).First().Vector,
                 key: id
             );
 

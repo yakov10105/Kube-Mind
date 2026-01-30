@@ -21,7 +21,7 @@ public class K8sDiagnosticsPlugin
 
     [KernelFunction]
     [Description("Analyzes Kubernetes pod logs and manifests to diagnose the root cause of a failure.")]
-    public async Task<string> AnalyzeIncident(
+    public Task<string> AnalyzeIncident(
         [Description("The full incident context, serialized as a JSON string.")] string incidentContextJson)
     {
         _logger.LogInformation("Starting incident analysis...");
@@ -30,7 +30,7 @@ public class K8sDiagnosticsPlugin
         if (incident == null)
         {
             _logger.LogError("Failed to deserialize IncidentContext JSON.");
-            return "{}";
+            return Task.FromResult("{}");
         }
         
         // This is where the prompt engineering happens.
@@ -86,6 +86,6 @@ public class K8sDiagnosticsPlugin
             SupportingEvidence: "N/A"
         );
         
-        return JsonSerializer.Serialize(placeholderDiagnosis);
+        return Task.FromResult(JsonSerializer.Serialize(placeholderDiagnosis));
     }
 }
