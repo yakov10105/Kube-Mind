@@ -52,7 +52,8 @@ public class Program
         Console.WriteLine("Connecting to Redis...");
         var redis = await ConnectionMultiplexer.ConnectAsync(redisConnectionString);
         var db = redis.GetDatabase();
-        var memoryStore = new RedisMemoryStore(db, vectorSize: 1536);
+        var memoryStore = new RedisVectorStore(db);
+        var collection = memoryStore.GetCollection<string, MemoryRecord>(MemoryCollectionName);
 
         Console.WriteLine("Successfully connected to Redis. Seeding data...");
 
@@ -82,7 +83,7 @@ public class Program
                 key: id
             );
 
-            await memoryStore.UpsertAsync(MemoryCollectionName, memoryRecord);
+            await collection.UpsertAsync(memoryRecord);
             Console.WriteLine($"  - Saved record '{id}'");
         }
         

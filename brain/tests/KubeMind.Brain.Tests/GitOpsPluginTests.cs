@@ -16,11 +16,10 @@ public class GitOpsPluginTests
     {
         // Arrange
         var mockLogger = new Mock<ILogger<GitOpsPlugin>>();
-        // Replaced GitHubClient mock with IGitHubService mock
         var mockGitHubService = new Mock<IGitHubService>();
+        var mockNotificationService = new Mock<INotificationService>();
 
-        // Updated plugin instantiation to use IGitHubService mock
-        var plugin = new GitOpsPlugin(mockLogger.Object, mockGitHubService.Object);
+        var plugin = new GitOpsPlugin(mockLogger.Object, mockGitHubService.Object, mockNotificationService.Object);
 
         var repositoryOwner = "test-owner";
         var repositoryName = "test-repo";
@@ -32,13 +31,6 @@ public class GitOpsPluginTests
         var pullRequestTitle = "Automated Fix for Test Incident";
         var pullRequestBody = "This is an automated PR.";
         var expectedPullRequestUrl = $"https://github.com/{repositoryOwner}/{repositoryName}/pull/123-mock";
-
-        // Set up IGitHubService mocks
-        mockGitHubService.Setup(x => x.CreateBranchAsync(repositoryOwner, repositoryName, baseBranch, newBranchName))
-            .ReturnsAsync("mock-new-branch-sha");
-
-        mockGitHubService.Setup(x => x.CreateOrUpdateFileAsync(repositoryOwner, repositoryName, newBranchName, filePath, fileContent, commitMessage))
-            .ReturnsAsync("mock-file-sha");
 
         mockGitHubService.Setup(x => x.CreatePullRequestAsync(repositoryOwner, repositoryName, baseBranch, newBranchName, pullRequestTitle, pullRequestBody))
             .ReturnsAsync(expectedPullRequestUrl);
@@ -57,8 +49,7 @@ public class GitOpsPluginTests
 
         // Assert
         Assert.Equal(expectedPullRequestUrl, result);
-        mockGitHubService.Verify(x => x.CreateBranchAsync(repositoryOwner, repositoryName, baseBranch, newBranchName), Times.Once);
-        mockGitHubService.Verify(x => x.CreateOrUpdateFileAsync(repositoryOwner, repositoryName, newBranchName, filePath, fileContent, commitMessage), Times.Once);
         mockGitHubService.Verify(x => x.CreatePullRequestAsync(repositoryOwner, repositoryName, baseBranch, newBranchName, pullRequestTitle, pullRequestBody), Times.Once);
+        mockNotificationService.Verify(x => x.SendNotificationAsync(It.Is<string>(s => s.Contains(expectedPullRequestUrl)), default), Times.Once);
     }
 }

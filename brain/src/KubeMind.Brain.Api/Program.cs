@@ -1,3 +1,5 @@
+using KubeMind.Brain.Api.Filters;
+using KubeMind.Brain.Api.Hubs;
 using KubeMind.Brain.Api.Services;
 using Microsoft.SemanticKernel;
 using OpenTelemetry.Resources;
@@ -5,6 +7,8 @@ using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Formatting.Compact;
 using KubeMind.Brain.Infrastructure.Services;
+using Microsoft.SemanticKernel.Connectors.Redis;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 var serviceName = "KubeMind.Brain";
@@ -25,6 +29,7 @@ builder.Services.AddOpenTelemetry()
         .AddConsoleExporter()); 
 
 builder.Services.AddGrpc();
+builder.Services.AddSignalR();
 
 var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
 if (string.IsNullOrWhiteSpace(redisConnectionString))
@@ -35,9 +40,11 @@ if (string.IsNullOrWhiteSpace(redisConnectionString))
 {
     throw new InvalidOperationException("Redis connection string is not configured in ConnectionStrings or Redis section.");
 }
+
 builder.Services.AddRedisVectorStore(redisConnectionString);
 
 var kernelBuilder = builder.Services.AddKernel();
+kernelBuilder.Services.AddSingleton<IFunctionInvocationFilter, AgentStreamingFilter>();
 
 builder.Services.AddSingleton<KubeMind.Brain.Application.Plugins.K8sDiagnosticsPlugin>();
 kernelBuilder.Plugins.AddFromType<KubeMind.Brain.Application.Plugins.K8sDiagnosticsPlugin>();
@@ -62,6 +69,9 @@ kernelBuilder.Plugins.AddFromType<KubeMind.Brain.Application.Plugins.GitOpsPlugi
 
 // Register the Enrichment Service
 builder.Services.AddSingleton<KubeMind.Brain.Application.Services.IEnrichmentService, EnrichmentService>();
+
+// Register the Notification Service
+builder.Services.AddHttpClient<KubeMind.Brain.Application.Services.INotificationService, SlackNotificationService>();
 
 var aiConfig = builder.Configuration.GetSection("AIService");
 var serviceType = aiConfig["Type"];
@@ -95,9 +105,14 @@ switch (serviceType)
 }
 
 
+
+
 var app = builder.Build();
 
+app.UseStaticFiles();
+
 app.MapGrpcService<IncidentService>();
+app.MapHub<AgentHub>("/agenthub");
 
 app.MapGet("/", () => "KubeMind.Brain is online.");
 

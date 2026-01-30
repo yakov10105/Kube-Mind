@@ -8,7 +8,7 @@ namespace KubeMind.Brain.Application.Plugins;
 /// <summary>
 /// A Semantic Kernel plugin for GitOps operations, specifically creating Pull Requests.
 /// </summary>
-public class GitOpsPlugin(ILogger<GitOpsPlugin> logger, IGitHubService gitHubService)
+public class GitOpsPlugin(ILogger<GitOpsPlugin> logger, IGitHubService gitHubService, INotificationService notificationService)
 {
     [KernelFunction]
     [Description("Creates a Pull Request in a specified GitHub repository with a proposed fix.")]
@@ -30,6 +30,9 @@ public class GitOpsPlugin(ILogger<GitOpsPlugin> logger, IGitHubService gitHubSer
         var prUrl = await gitHubService.CreatePullRequestAsync(repositoryOwner, repositoryName, baseBranch, newBranchName, pullRequestTitle, pullRequestBody);
 
         logger.LogInformation("Pull Request created: {PullRequestUrl}", prUrl);
+
+        var notificationMessage = $"🤖 Automated Fix Proposed! Please review the following Pull Request: {prUrl}";
+        await notificationService.SendNotificationAsync(notificationMessage);
 
         return prUrl;
     }

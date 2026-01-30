@@ -124,7 +124,7 @@ The Brain operates on a continuous cognitive loop for each incident:
 | ✅ **2.1 K8s Diagnostic Plugin** | • Create `K8sDiagnosticsPlugin`<br>• Engineer prompts for log/manifest analysis  | The agent can be prompted with an `IncidentContext` and return a structured JSON diagnosis with >90% accuracy on test data.           |
 | ✅ **2.2 Vector Memory**         | • Implement `IMemoryStore` using Redis<br>• Create a seeding script for runbooks | The agent, when presented with a known error, includes a "similar past incident" link in its analysis.                                |
 | ✅ **2.3 Auto-Function Calling** | • Map C# methods to `KernelFunction`<br>• Configure auto-invocation planner      | The agent automatically calls a `KubernetesPlugin.GetPodStatus` function when its plan requires it, without being explicitly told to. |
-| **2.4 Cognitive Enrichment**  | • Create embeddings from `IncidentContext`<br>• Query Redis for similar documents<br>• Inject retrieved context into planner prompt | The `goal` passed to the planner now contains a section with "similar past incidents" or "relevant runbooks" retrieved from the vector store. |
+| ✅ **2.4 Cognitive Enrichment**  | • Create embeddings from `IncidentContext`<br>• Query Redis for similar documents<br>• Inject retrieved context into planner prompt | The `goal` passed to the planner now contains a section with "similar past incidents" or "relevant runbooks" retrieved from the vector store. |
 
 ### Phase 3: The Remediation Loop (GitOps)
 
@@ -133,8 +133,8 @@ The Brain operates on a continuous cognitive loop for each incident:
 | Task                        | Sub-tasks                                                                                 | Definition of Done (DoD)                                                                               |
 | :-------------------------- | :---------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------- |
 | ✅ **3.1 GitOps Plugin**       | • Implement `GitHubPlugin` using `Octokit.NET`<br>• Logic for branch creation & PR filing | Given a target repo and a file change, the system successfully opens a PR in a test GitHub repository. |
-| **3.2 Real-time UI Stream** | • Implement a SignalR Hub<br>• Integrate SK hooks to stream planner/function events       | A basic web UI displays a live, formatted log of "Agent is thinking...", "Agent is calling tool X...". |
-| **3.3 Approval Workflow**   | • Implement a "Pending Approval" state<br>• Add Slack/Teams notification to GitOpsPlugin  | When a PR is created, a notification is posted to a test Slack channel with a link to the PR.          |
+| ✅ **3.2 Real-time UI Stream** | • Implement a SignalR Hub<br>• Integrate SK hooks to stream planner/function events       | A basic web UI displays a live, formatted log of "Agent is thinking...", "Agent is calling tool X...". |
+| ✅ **3.3 Approval Workflow**   | • Implement a "Pending Approval" state<br>• Add Slack/Teams notification to GitOpsPlugin  | When a PR is created, a notification is posted to a test Slack channel with a link to the PR.          |
 
 ### Phase 4: Scaling & Resilience
 

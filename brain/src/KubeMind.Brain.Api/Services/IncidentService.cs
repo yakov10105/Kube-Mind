@@ -1,5 +1,7 @@
+using KubeMind.Brain.Api.Hubs;
 using Grpc.Core;
 using KubeMind.Proto;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.SemanticKernel;
 using System.Text.Json;
 using KubeMind.Brain.Application.Plugins;
@@ -12,18 +14,8 @@ namespace KubeMind.Brain.Api.Services;
 /// <summary>
 /// Implements the gRPC service for receiving incident data from Observers.
 /// </summary>
-public class IncidentService : IncidentServiceBase
+public class IncidentService(ILogger<IncidentService> logger, Kernel kernel, IEnrichmentService enrichmentService, IHubContext<AgentHub> hubContext) : IncidentServiceBase
 {
-    private readonly ILogger<IncidentService> _logger;
-    private readonly Kernel _kernel;
-    private readonly IEnrichmentService _enrichmentService;
-
-    public IncidentService(ILogger<IncidentService> logger, Kernel kernel, IEnrichmentService enrichmentService)
-    {
-        _logger = logger;
-        _kernel = kernel;
-        _enrichmentService = enrichmentService;
-    }
 
     /// <summary>
     /// Handles a client-side stream of IncidentContext messages.
@@ -32,13 +24,13 @@ public class IncidentService : IncidentServiceBase
         IAsyncStreamReader<IncidentContext> requestStream,
         ServerCallContext context)
     {
-        _logger.LogInformation("Client stream started.");
+        logger.LogInformation("Client stream started.");
 
         var planner = new HandlebarsPlanner(new HandlebarsPlannerOptions() { AllowLoops = true });
 
         await foreach (var incident in requestStream.ReadAllAsync(context.CancellationToken))
         {
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Received Incident '{IncidentId}' for Pod '{PodName}' in namespace '{Namespace}'. Reason: {Reason}",
                 incident.IncidentId,
                 incident.PodName,
@@ -66,17 +58,20 @@ public class IncidentService : IncidentServiceBase
             {{{incidentJson}}}
             """;
 
-            var enrichedGoal = await _enrichmentService.EnrichGoalWithCognitiveMemoryAsync(incident, originalGoal, context.CancellationToken);
+            var enrichedGoal = await enrichmentService.EnrichGoalWithCognitiveMemoryAsync(incident, originalGoal, context.CancellationToken);
 
-            var plan = await planner.CreatePlanAsync(_kernel, enrichedGoal);
-            _logger.LogInformation("Plan created: {Plan}", plan);
-            
-            var result = await plan.InvokeAsync(_kernel);
+            var plan = await planner.CreatePlanAsync(kernel, enrichedGoal);
 
-            _logger.LogInformation("Diagnosis for Incident {IncidentId}: {Diagnosis}", incident.IncidentId, result);
+            await hubContext.Clients.All.SendAsync("ReceiveMessage", $"🤖 Plan created: {plan}", context.CancellationToken);
+            logger.LogInformation("Plan created: {Plan}", plan);
+
+            var result = await plan.InvokeAsync(kernel);
+
+            await hubContext.Clients.All.SendAsync("ReceiveMessage", $"🏁 Plan execution finished. Final result: {result}", context.CancellationToken);
+            logger.LogInformation("Diagnosis for Incident {IncidentId}: {Diagnosis}", incident.IncidentId, result);
         }
 
-        _logger.LogInformation("Client stream finished.");
+        logger.LogInformation("Client stream finished.");
 
         return new StreamIncidentResponse
         {
