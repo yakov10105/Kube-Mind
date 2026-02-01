@@ -1,3 +1,4 @@
+using KubeMind.Brain.Api.Extensions;
 using KubeMind.Brain.Api.Telemetry;
 using Azure.Identity;
 using KubeMind.Brain.Api.Logging;
@@ -91,39 +92,7 @@ builder.Services.AddHttpClient<KubeMind.Brain.Application.Services.INotification
 // Register the Deduplication Service
 builder.Services.AddSingleton<KubeMind.Brain.Application.Services.IIncidentDeduplicationService, RedisIncidentDeduplicationService>();
 
-var aiConfig = builder.Configuration.GetSection("AIService");
-var serviceType = aiConfig["Type"];
-
-if (string.IsNullOrWhiteSpace(serviceType))
-{
-    throw new InvalidOperationException("AIService:Type is not configured in appsettings.");
-}
-
-var modelId = aiConfig["ModelId"];
-var apiKey = aiConfig["ApiKey"];
-
-if (string.IsNullOrWhiteSpace(modelId)) throw new InvalidOperationException("AIService:ModelId is not configured.");
-if (string.IsNullOrWhiteSpace(apiKey)) throw new InvalidOperationException("AIService:ApiKey is not configured.");
-
-switch (serviceType)
-{
-    case "OpenAI":
-        var orgId = aiConfig["OrgId"];
-        builder.Services.AddOpenAIChatCompletion(modelId, apiKey, orgId);
-        break;
-
-    case "AzureOpenAI":
-        var endpoint = aiConfig["Endpoint"];
-        if (string.IsNullOrWhiteSpace(endpoint)) throw new InvalidOperationException("AIService:Endpoint is not configured for AzureOpenAI.");
-        builder.Services.AddAzureOpenAIChatCompletion(modelId, endpoint, apiKey);
-        break;
-    
-    default:
-        throw new InvalidOperationException($"Unsupported AIService:Type '{serviceType}'.");
-}
-
-
-
+builder.Services.AddAiService(builder.Configuration);
 
 var app = builder.Build();
 

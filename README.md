@@ -83,8 +83,8 @@ sequenceDiagram
         Brain (gRPC Server)->>Redis (Vector DB): Search for similar incidents/runbooks
         Brain (gRPC Server)->>Semantic Kernel (AI Orchestrator): RunAnalysis(EnrichedContext)
 
-        Semantic Kernel (AI Orchestrator)->>LLM (GPT-4o, etc.): Create Plan & Hypothesis
-        LLM (GPT-4o, etc.)-->>Semantic Kernel (AI Orchestrator): Proposed Plan
+        Semantic Kernel (AI Orchestrator)->>LLM (GPT-4o): Create Plan & Hypothesis
+        LLM (GPT-4o)-->>Semantic Kernel (AI Orchestrator): Proposed Plan
         Semantic Kernel (AI Orchestrator)->>UI (SignalR): Stream("Plan: ...")
 
         loop Plan Execution (via Function Invocation Filter)
@@ -93,8 +93,8 @@ sequenceDiagram
             Semantic Kernel (AI Orchestrator)->>UI (SignalR): Stream("Tool Output: ...")
         end
 
-        Semantic Kernel (AI Orchestrator)->>LLM (GPT-4o, etc.): Formulate Remediation
-        LLM (GPT-4o, etc.)-->>Semantic Kernel (AI Orchestrator): Proposed Code Change
+        Semantic Kernel (AI Orchestrator)->>LLM (GPT-4o): Formulate Remediation
+        LLM (GPT-4o)-->>Semantic Kernel (AI Orchestrator): Proposed Code Change
 
         Semantic Kernel (AI Orchestrator)->>Tool Plugins: PolycheckPlugin.IsCodeChangeSafe(ProposedCodeChange)
         Tool Plugins-->>Semantic Kernel (AI Orchestrator): Safety Assessment ("YES" / "NO")

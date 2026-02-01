@@ -12,6 +12,7 @@
     <PackageReference Include="Azure.Identity" Version="1.17.1" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0" />
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.70.0-preview" />
+    <PackageReference Include="Microsoft.SemanticKernel.Connectors.Google" Version="1.70.0-alpha" />
     <PackageReference Include="Microsoft.SemanticKernel.Connectors.Redis" Version="1.70.0-preview" />
     <PackageReference Include="Microsoft.SemanticKernel.Planners.Handlebars" Version="1.47.0-preview" />
     <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.15.0" />
