@@ -1,10 +1,5 @@
-
-using System;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.Connectors.OpenAI; // For AddOpenAIChatCompletion and AddAzureOpenAIChatCompletion
-using Microsoft.SemanticKernel.Connectors.Google; // For AddGoogleAIGeminiChatCompletion
+
 
 namespace KubeMind.Brain.Api.Extensions
 {
@@ -40,7 +35,13 @@ namespace KubeMind.Brain.Api.Extensions
                     break;
                 
                 case "Gemini":
-                    services.AddGoogleAIGeminiChatCompletion(modelId, apiKey);
+                string token = "";
+                    services.AddVertexAIGeminiChatCompletion(
+                        modelId: "gemini-1.5-flash",
+                        bearerTokenProvider: () => ValueTask.FromResult(token),
+                        location: "us-central1",
+                        projectId: "your-project-id"
+                    );
                     break;
 
                 default:
