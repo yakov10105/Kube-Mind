@@ -94,6 +94,14 @@ builder.Services.AddSingleton<KubeMind.Brain.Application.Services.IIncidentDedup
 
 builder.Services.AddAiService(builder.Configuration);
 
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    serverOptions.ListenAnyIP(50051, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
+    });
+});
+
 var app = builder.Build();
 
 app.UseStaticFiles();
