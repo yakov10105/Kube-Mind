@@ -74,3 +74,5 @@ _test/
 coverage.out
 *.prof
 SESSION_CHANGES.md
+DEPLOYMENT.md
+docs/TESTING.MD

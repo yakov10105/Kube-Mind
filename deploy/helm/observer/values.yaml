@@ -1,8 +1,8 @@
 replicaCount: 1
 
 image:
-  repository: kube-mind-observer
-  pullPolicy: IfNotPresent
+  repository: observer
+  pullPolicy: Never
   tag: "latest"
 
 serviceAccount:
@@ -25,14 +25,14 @@ grpc:
   caCertPath: "/etc/certs/ca.crt"         # Path within the pod for CA cert
   clientCertPath: "/etc/certs/tls.crt"    # Path within the pod for client cert
   clientKeyPath: "/etc/certs/tls.key"     # Path within the pod for client key
-  insecure: false # Set to true for local development without mTLS
+  insecure: true # Set to true for local development without mTLS
 
 service:
   type: ClusterIP
   metricsPort: 8080 # Port for Prometheus metrics
 
 serviceMonitor:
-  enabled: true
+  enabled: false
   interval: "30s"
 
 # Resource limits for the observer pod

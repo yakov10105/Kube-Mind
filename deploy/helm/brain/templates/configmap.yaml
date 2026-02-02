@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "brain.fullname" . }}-configmap
+data:
+  appsettings.json: |-
+    {
+      "Redis": {
+        "ConnectionString": "kube-mind-brain-redis-master:6379"
+      },
+      "GitHub": {
+        "Token": "dummy-token"
+      },
+      "AIService": {
+        "Type": "OpenAI",
+        "ModelId": "gpt-4o",
+        "ApiKey": "dummy-key"
+      }
+    }
