@@ -32,7 +32,7 @@ type BrainGrpcClient struct {
 // If `insecure` is true, it will connect without mTLS. Otherwise, mTLS is used.
 func NewBrainGrpcClient(ctx context.Context, addr string, useInsecureTransport bool, caCertPath, clientCertPath, clientKeyPath string) (*BrainGrpcClient, error) {
 	opts := []grpc.DialOption{
-		grpc.WithBlock(), // Block until the connection is established
+		grpc.WithBlock(),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                10 * time.Second,
 			Timeout:             time.Second,
@@ -43,18 +43,15 @@ func NewBrainGrpcClient(ctx context.Context, addr string, useInsecureTransport b
 	if useInsecureTransport {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	} else {
-		// Pre-flight check for required certificate paths when mTLS is enabled.
 		if caCertPath == "" || clientCertPath == "" || clientKeyPath == "" {
 			return nil, fmt.Errorf("mTLS is enabled but one or more certificate paths are missing; please provide --grpc-ca-cert, --grpc-client-cert, and --grpc-client-key, or use --grpc-insecure for local development")
 		}
 
-		// Load the client's certificate and private key
 		clientCert, err := tls.LoadX509KeyPair(clientCertPath, clientKeyPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load client key pair: %w", err)
 		}
 
-		// Load the CA certificate
 		caCert, err := os.ReadFile(caCertPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read CA certificate: %w", err)
@@ -64,7 +61,6 @@ func NewBrainGrpcClient(ctx context.Context, addr string, useInsecureTransport b
 			return nil, fmt.Errorf("failed to add CA certificate to pool")
 		}
 
-		// Create TLS credentials
 		tlsConfig := &tls.Config{
 			Certificates: []tls.Certificate{clientCert},
 			RootCAs:      caCertPool,
@@ -73,7 +69,6 @@ func NewBrainGrpcClient(ctx context.Context, addr string, useInsecureTransport b
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 	}
 
-	// Dial the server
 	conn, err := grpc.DialContext(ctx, addr, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial gRPC server: %w", err)
@@ -94,7 +89,6 @@ func (c *BrainGrpcClient) StreamIncident(ctx context.Context, incident *pb.Incid
 	if err := stream.Send(incident); err != nil {
 		return fmt.Errorf("failed to send incident on stream: %w", err)
 	}
-	// Close the stream and receive the server's response
 	if _, err := stream.CloseAndRecv(); err != nil {
 		return fmt.Errorf("failed to close and receive from stream: %w", err)
 	}

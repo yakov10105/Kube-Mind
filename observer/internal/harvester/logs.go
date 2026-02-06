@@ -10,7 +10,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 // PodLogStreamer defines an interface for streaming pod logs.
@@ -44,19 +43,13 @@ type K8sLogAggregator struct {
 }
 
 // NewK8sLogAggregator creates a new K8sLogAggregator with a default K8sPodLogStreamer.
-func NewK8sLogAggregator(config *rest.Config) (*K8sLogAggregator, error) {
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create kubernetes clientset: %w", err)
-	}
+// It directly accepts a kubernetes.Clientset to avoid re-creating it from config.
+func NewK8sLogAggregator(clientset *kubernetes.Clientset) *K8sLogAggregator {
 	return &K8sLogAggregator{
-			Streamer: &K8sPodLogStreamer{Clientset: clientset},
-		},
-		nil
+		Streamer: &K8sPodLogStreamer{Clientset: clientset},
+	}
 }
 
-// NewK8sLogAggregatorWithStreamer creates a new K8sLogAggregator with a custom PodLogStreamer.
-// This is primarily for testing.
 func NewK8sLogAggregatorWithStreamer(streamer PodLogStreamer) *K8sLogAggregator {
 	return &K8sLogAggregator{
 		Streamer: streamer,
