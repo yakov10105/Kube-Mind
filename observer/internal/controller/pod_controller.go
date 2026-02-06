@@ -62,35 +62,39 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// Filter for non-Running states, specifically CrashLoopBackOff
 	for _, containerStatus := range pod.Status.ContainerStatuses {
-		if containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Reason == domain.ReasonCrashLoopBackOff {
-			log.Info("Pod entered CrashLoopBackOff", "pod", pod.Name, "namespace", pod.Namespace, "container", containerStatus.Name)
+		var failureReason string
+		if containerStatus.State.Waiting != nil && isIncidentReason(containerStatus.State.Waiting.Reason) {
+			failureReason = containerStatus.State.Waiting.Reason
+		} else if containerStatus.State.Terminated != nil && isIncidentReason(containerStatus.State.Terminated.Reason) {
+			failureReason = containerStatus.State.Terminated.Reason
+		}
+
+		if failureReason != "" {
+			log.Info("Pod entered incident state", "pod", pod.Name, "namespace", pod.Namespace, "container", containerStatus.Name, "reason", failureReason)
 
 			incidentKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerStatus.Name)
 			if _, found := r.IncidentCache.Get(incidentKey); found {
 				log.Info("Incident debounced", "key", incidentKey)
-				return ctrl.Result{}, nil // Debounce repeated incidents
+				return ctrl.Result{}, nil
 			}
 
-			// Add to cache to debounce future events for this incident
+
 			r.IncidentCache.AddOrUpdate(incidentKey, true, r.Config.DebounceTTLSeconds)
 
-			// Harvest logs
-			logs, err := r.LogAggregator.GetLogs(ctx, pod.Namespace, pod.Name, containerStatus.Name, domain.DefaultLogTailLines) // Last 200 lines
+			logs, err := r.LogAggregator.GetLogs(ctx, pod.Namespace, pod.Name, containerStatus.Name, domain.DefaultLogTailLines)
 			if err != nil {
 				log.Error(err, "failed to get pod logs", "pod", pod.Name, "container", containerStatus.Name)
 				return ctrl.Result{}, err
 			}
 
-			// Harvest and redact Pod manifest
 			podManifest, err := r.ManifestParser.GetAndRedactPodManifest(ctx, pod.Namespace, pod.Name)
 			if err != nil {
 				log.Error(err, "failed to get and redact pod manifest", "pod", pod.Name)
 				return ctrl.Result{}, err
 			}
 
-			// Try to find owning deployment and get its manifest
+
 			var deploymentManifest string
 			for _, ownerRef := range pod.OwnerReferences {
 				if ownerRef.Kind == "ReplicaSet" {
@@ -114,19 +118,19 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 				}
 			}
 
-			// Create IncidentContext payload
+
 			incidentContext := &pb.IncidentContext{
-				IncidentId:             fmt.Sprintf("%s-%s-%s-%d", pod.Name, containerStatus.Name, containerStatus.State.Waiting.Reason, time.Now().Unix()),
+				IncidentId:             fmt.Sprintf("%s-%s-%s-%d", pod.Name, containerStatus.Name, failureReason, time.Now().Unix()),
 				PodName:                pod.Name,
 				PodNamespace:           pod.Namespace,
-				FailureReason:          containerStatus.State.Waiting.Reason,
+				FailureReason:          failureReason,
 				Logs:                   logs,
 				PodManifestJson:        podManifest,
 				DeploymentManifestJson: deploymentManifest,
 				Timestamp:              timestamppb.Now(),
 			}
 
-			// Stream incident to the Brain
+
 			if err := r.GrpcClient.StreamIncident(ctx, incidentContext); err != nil {
 				log.Error(err, "failed to stream incident to Brain", "incidentID", incidentContext.IncidentId)
 				return ctrl.Result{}, err
@@ -145,4 +149,18 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&corev1.Pod{}).
 		Named("pod").
 		Complete(r)
+}
+
+// isIncidentReason checks if the provided reason is one that should trigger an incident.
+func isIncidentReason(reason string) bool {
+	switch reason {
+	case domain.ReasonCrashLoopBackOff,
+		domain.ReasonImagePullBackOff,
+		domain.ReasonErrImagePull,
+		domain.ReasonOOMKilled,
+		domain.ReasonError:
+		return true
+	default:
+		return false
+	}
 }

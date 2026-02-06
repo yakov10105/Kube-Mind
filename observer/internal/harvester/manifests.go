@@ -7,9 +7,10 @@ import (
 	"regexp"
 
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // ManifestFetcher defines an interface for fetching Kubernetes manifests.
@@ -20,21 +21,18 @@ type ManifestFetcher interface {
 
 // K8sManifestFetcher implements ManifestFetcher using client-go.
 type K8sManifestFetcher struct {
-	Clientset kubernetes.Interface
+	Client client.Client
 }
 
 // NewK8sManifestFetcher creates a new K8sManifestFetcher.
-func NewK8sManifestFetcher(config *rest.Config) (*K8sManifestFetcher, error) {
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create kubernetes clientset: %w", err)
-	}
-	return &K8sManifestFetcher{Clientset: clientset}, nil
+func NewK8sManifestFetcher(client client.Client) *K8sManifestFetcher {
+	return &K8sManifestFetcher{Client: client}
 }
 
 // GetPodManifest retrieves and serializes a Pod manifest to JSON.
 func (f *K8sManifestFetcher) GetPodManifest(ctx context.Context, namespace, name string) (string, error) {
-	pod, err := f.Clientset.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
+	pod := &corev1.Pod{}
+	err := f.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, pod)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return "", fmt.Errorf("pod %s/%s not found", namespace, name)
@@ -42,7 +40,6 @@ func (f *K8sManifestFetcher) GetPodManifest(ctx context.Context, namespace, name
 		return "", fmt.Errorf("failed to get pod %s/%s: %w", namespace, name, err)
 	}
 
-	// Serialize to JSON
 	jsonBytes, err := json.MarshalIndent(pod, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal pod %s/%s to JSON: %w", namespace, name, err)
@@ -52,7 +49,8 @@ func (f *K8sManifestFetcher) GetPodManifest(ctx context.Context, namespace, name
 
 // GetDeploymentManifest retrieves and serializes a Deployment manifest to JSON.
 func (f *K8sManifestFetcher) GetDeploymentManifest(ctx context.Context, namespace, name string) (string, error) {
-	deployment, err := f.Clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+	deployment := &appsv1.Deployment{}
+	err := f.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, deployment)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return "", fmt.Errorf("deployment %s/%s not found", namespace, name)
@@ -60,14 +58,12 @@ func (f *K8sManifestFetcher) GetDeploymentManifest(ctx context.Context, namespac
 		return "", fmt.Errorf("failed to get deployment %s/%s: %w", namespace, name, err)
 	}
 
-	// Serialize to JSON
 	jsonBytes, err := json.MarshalIndent(deployment, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal deployment %s/%s to JSON: %w", namespace, name, err)
 	}
 	return string(jsonBytes), nil
 }
-
 // RedactionEngine defines an interface for redacting sensitive data.
 type RedactionEngine interface {
 	Redact(manifest string) (string, error)
@@ -80,8 +76,6 @@ type RegexRedactionEngine struct {
 
 // NewRegexRedactionEngine creates a new RegexRedactionEngine with a default set of patterns.
 func NewRegexRedactionEngine() (*RegexRedactionEngine, error) {
-	// A configurable set of regex patterns to identify and mask sensitive values.
-	// This covers keys like `*_SECRET`, `*_TOKEN`, `*_KEY`, and common credential formats.
 	patterns := []string{
 		`("name":\s*".*?_SECRET.*?",\s*"value":\s*").*?"`,
 		`("name":\s*".*?_TOKEN.*?",\s*"value":\s*").*?"`,
@@ -117,11 +111,8 @@ type ManifestParser struct {
 }
 
 // NewManifestParser creates a new ManifestParser.
-func NewManifestParser(config *rest.Config) (*ManifestParser, error) {
-	fetcher, err := NewK8sManifestFetcher(config)
-	if err != nil {
-		return nil, err
-	}
+func NewManifestParser(client client.Client) (*ManifestParser, error) {
+	fetcher := NewK8sManifestFetcher(client)
 	redactor, err := NewRegexRedactionEngine()
 	if err != nil {
 		return nil, err

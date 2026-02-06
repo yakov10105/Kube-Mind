@@ -17,50 +17,61 @@ type ControllerConfig struct {
 	LeaderElectionRetryPeriod   time.Duration
 }
 
+const (
+	defaultLogLevel                    = "info"
+	defaultDebounceTTL                 = 300 * time.Second
+	defaultLeaderElectionNamespace     = "default"
+	defaultLeaderElectionID            = "19767522.tutorial.kubebuilder.io"
+	defaultLeaderElectionResourceLock  = "leases"
+	defaultLeaderElectionLeaseDuration = 15 * time.Second
+	defaultLeaderElectionRenewDeadline = 10 * time.Second
+	defaultLeaderElectionRetryPeriod   = 2 * time.Second
+)
+
 // LoadConfig loads configuration from environment variables.
 func LoadConfig() (*ControllerConfig, error) {
 	logLevel := os.Getenv("LOG_LEVEL")
 	if logLevel == "" {
-		logLevel = "info"
+		logLevel = defaultLogLevel
 	}
 
 	debounceTTLStr := os.Getenv("DEBOUNCE_TTL_SECONDS")
-	debounceTTL, err := time.ParseDuration(debounceTTLStr + "s") // Assume seconds if not specified
+	debounceTTL, err := time.ParseDuration(debounceTTLStr + "s")
 	if err != nil || debounceTTL <= 0 {
-		debounceTTL = 300 * time.Second // Default to 300 seconds (5 minutes)
+		debounceTTL = defaultDebounceTTL
 	}
 
 	leaderElectionNamespace := os.Getenv("LEADER_ELECTION_NAMESPACE")
 	if leaderElectionNamespace == "" {
-		leaderElectionNamespace = "default"
+		leaderElectionNamespace = defaultLeaderElectionNamespace
 	}
 
 	leaderElectionID := os.Getenv("LEADER_ELECTION_ID")
 	if leaderElectionID == "" {
-		leaderElectionID = "19767522.tutorial.kubebuilder.io"
+		leaderElectionID = defaultLeaderElectionID
 	}
 
 	leaderElectionResourceLock := os.Getenv("LEADER_ELECTION_RESOURCE_LOCK")
 	if leaderElectionResourceLock == "" {
-		leaderElectionResourceLock = "leases"
+		leaderElectionResourceLock = defaultLeaderElectionResourceLock
 	}
 
 	leaseDurationStr := os.Getenv("LEADER_ELECTION_LEASE_DURATION")
 	leaseDuration, err := time.ParseDuration(leaseDurationStr)
 	if err != nil || leaseDuration <= 0 {
-		leaseDuration = 15 * time.Second // Default to 15 seconds
+		leaseDuration = defaultLeaderElectionLeaseDuration
 	}
 
 	renewDeadlineStr := os.Getenv("LEADER_ELECTION_RENEW_DEADLINE")
 	renewDeadline, err := time.ParseDuration(renewDeadlineStr)
 	if err != nil || renewDeadline <= 0 {
-		renewDeadline = 10 * time.Second // Default to 10 seconds
+		renewDeadline = defaultLeaderElectionRenewDeadline
 	}
 
 	retryPeriodStr := os.Getenv("LEADER_ELECTION_RETRY_PERIOD")
 	retryPeriod, err := time.ParseDuration(retryPeriodStr)
 	if err != nil || retryPeriod <= 0 {
-		retryPeriod = 2 * time.Second // Default to 2 seconds
+		retryPeriod = defaultLeaderElectionRetryPeriod
 	}
 
 	return &ControllerConfig{
