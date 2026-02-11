@@ -133,4 +133,11 @@ app.MapGet("/healthz", async (Kernel kernel, ILogger<Program> logger) =>
 });
 
 
+app.MapPost("/test-kernel", async (Kernel kernel) =>
+{
+    var testIncidentDescription = "Pod 'my-app-xyz' in namespace 'default' is in CrashLoopBackOff. Relevant logs: 'Error connecting to database', 'Connection refused'.";
+    var result = await kernel.InvokePromptAsync(testIncidentDescription);
+    return Results.Ok(result.GetValue<string>());
+});
+
 app.Run();

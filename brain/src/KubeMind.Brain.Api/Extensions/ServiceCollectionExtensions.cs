@@ -43,6 +43,10 @@ namespace KubeMind.Brain.Api.Extensions
                     services.AddGoogleAIGeminiChatCompletion(modelId, apiKey);
                     break;
 
+                case "Google":
+                    services.AddGoogleAIGeminiChatCompletion(modelId, apiKey);
+                    break;
+
                 default:
                     throw new InvalidOperationException($"Unsupported AIService:Type '{serviceType}'.");
             }
