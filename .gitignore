@@ -76,3 +76,8 @@ coverage.out
 SESSION_CHANGES.md
 DEPLOYMENT.md
 docs/TESTING.MD
+docs/kube-mind-c205678d57e9.json
+brain/src/KubeMind.Brain.Api/appsettings.Development.json
+brain/src/KubeMind.Brain.Api/appsettings.Development.json
+docs/enrichment.md
+docs/memory-consolidation-prd.md

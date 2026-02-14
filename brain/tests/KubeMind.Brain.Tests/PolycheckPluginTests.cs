@@ -1,13 +1,43 @@
 using KubeMind.Brain.Application.Plugins;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
-using Moq;
-using Xunit;
+using System.Runtime.CompilerServices; // Required for [EnumeratorCancellation]
 
 namespace KubeMind.Brain.Tests;
 
 public class PolycheckPluginTests
 {
+    private class DummyChatCompletionService : IChatCompletionService
+    {
+        private readonly string _llmResponse;
+
+        public DummyChatCompletionService(string llmResponse)
+        {
+            _llmResponse = llmResponse;
+        }
+
+        public IReadOnlyDictionary<string, object?> Attributes => new Dictionary<string, object?>();
+
+        public Task<IReadOnlyList<ChatMessageContent>> GetChatMessageContentsAsync(
+            ChatHistory chatHistory,
+            PromptExecutionSettings? executionSettings = null,
+            Kernel? kernel = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<ChatMessageContent>>(
+                new List<ChatMessageContent> { new ChatMessageContent(AuthorRole.Assistant, _llmResponse) });
+        }
+
+        public async IAsyncEnumerable<StreamingChatMessageContent> GetStreamingChatMessageContentsAsync(
+            ChatHistory chatHistory,
+            PromptExecutionSettings? executionSettings = null,
+            Kernel? kernel = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            yield return new StreamingChatMessageContent(AuthorRole.Assistant, _llmResponse);
+        }
+    }
+
     [Theory]
     [InlineData("YES", "YES")]
     [InlineData("NO", "NO")]
@@ -16,17 +46,9 @@ public class PolycheckPluginTests
     public async Task IsCodeChangeSafe_ReturnsCorrectSafetyAssessment(string llmResponse, string expectedResult)
     {
         // Arrange
-        var mockChatCompletionService = new Mock<IChatCompletionService>();
-        var mockKernel = new Mock<Kernel>();
+        var dummyChatCompletionService = new DummyChatCompletionService(llmResponse);
         
-        mockChatCompletionService.Setup(c => c.GetChatMessageContentAsync(It.IsAny<string>(), It.IsAny<PromptExecutionSettings>(), It.IsAny<Kernel>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ChatMessageContent(AuthorRole.Assistant, llmResponse));
-        
-        var serviceProvider = new Mock<IServiceProvider>();
-        serviceProvider.Setup(s => s.GetService(typeof(IChatCompletionService))).Returns(mockChatCompletionService.Object);
-        mockKernel.Setup(k => k.Services).Returns(serviceProvider.Object);
-        
-        var plugin = new PolycheckPlugin(mockKernel.Object);
+        var plugin = new PolycheckPlugin(dummyChatCompletionService);
         var codeChange = "some code";
 
         // Act

@@ -1,10 +1,4 @@
-
-using System;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.Connectors.OpenAI; // For AddOpenAIChatCompletion and AddAzureOpenAIChatCompletion
-using Microsoft.SemanticKernel.Connectors.Google; // For AddGoogleAIGeminiChatCompletion
 
 namespace KubeMind.Brain.Api.Extensions
 {

@@ -1,10 +1,8 @@
-using KubeMind.Brain.Application.Services;
 using KubeMind.Brain.Infrastructure.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 using StackExchange.Redis;
-using Xunit;
 
 namespace KubeMind.Brain.Tests;
 
@@ -30,7 +28,7 @@ public class RedisIncidentDeduplicationServiceTests
         // Arrange
         var incidentId = "new-incident-123";
         _mockDatabase.Setup(db => db.StringSetAsync($"{RedisIncidentDeduplicationService.IncidentKeyPrefix}{incidentId}", 
-            "processed", It.IsAny<TimeSpan>(), When.NotExists, CommandFlags.None))
+            "processed", It.IsAny<TimeSpan>(), When.NotExists))
             .ReturnsAsync(true); // Simulate key was set
 
         var service = new RedisIncidentDeduplicationService(_mockDatabase.Object, _mockConfiguration.Object, _mockLogger.Object);

@@ -7,9 +7,9 @@ namespace KubeMind.Brain.Application.Plugins;
 /// <summary>
 /// A Semantic Kernel plugin that acts as a safety guardrail ("Polycheck").
 /// </summary>
-public class PolycheckPlugin(Kernel kernel)
+public class PolycheckPlugin(IChatCompletionService chatCompletionService)
 {
-    private readonly IChatCompletionService _chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+    private readonly IChatCompletionService _chatCompletionService = chatCompletionService;
 
     [KernelFunction]
     [Description("Validates a proposed code change for safety by asking a secondary LLM.")]

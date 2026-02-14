@@ -4,7 +4,6 @@ using KubeMind.Brain.Application.Models;
 using KubeMind.Brain.Application.Plugins;
 using KubeMind.Proto;
 using Microsoft.Extensions.Logging;
-using Microsoft.SemanticKernel;
 using Moq;
 
 namespace KubeMind.Brain.Tests;

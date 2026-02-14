@@ -1,18 +1,21 @@
-using KubeMind.Brain.Api.Extensions;
-using KubeMind.Brain.Api.Telemetry;
 using Azure.Identity;
-using KubeMind.Brain.Api.Logging;
+using Google.Apis.Auth.OAuth2;
+using KubeMind.Brain.Api.Extensions;
 using KubeMind.Brain.Api.Filters;
 using KubeMind.Brain.Api.Hubs;
 using KubeMind.Brain.Api.Services;
+using KubeMind.Brain.Api.Telemetry;
+using KubeMind.Brain.Infrastructure.Services;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.VectorData;
 using Microsoft.SemanticKernel;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Formatting.Compact;
-using KubeMind.Brain.Infrastructure.Services;
-using Microsoft.SemanticKernel.Connectors.Redis;
 using StackExchange.Redis;
+
+Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", @"c:\Users\Me\Desktop\Kube-Mind\docs\kube-mind-c205678d57e9.json");
 
 var builder = WebApplication.CreateBuilder(args);
 var serviceName = "KubeMind.Brain";
@@ -39,22 +42,11 @@ builder.Services.AddOpenTelemetry()
         .AddAspNetCoreInstrumentation()
         .AddConsoleExporter()); 
 
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(); 
+
 builder.Services.AddGrpc();
 builder.Services.AddSignalR();
-
-var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
-if (string.IsNullOrWhiteSpace(redisConnectionString))
-{
-    redisConnectionString = builder.Configuration.GetSection("Redis")["ConnectionString"];
-}
-if (string.IsNullOrWhiteSpace(redisConnectionString))
-{
-    throw new InvalidOperationException("Redis connection string is not configured in ConnectionStrings or Redis section.");
-}
-
-builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnectionString));
-builder.Services.AddSingleton<IDatabase>(sp => sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase());
-builder.Services.AddRedisVectorStore(redisConnectionString);
 
 var kernelBuilder = builder.Services.AddKernel();
 kernelBuilder.Services.AddSingleton<IFunctionInvocationFilter, AgentStreamingFilter>();
@@ -68,13 +60,58 @@ kernelBuilder.Plugins.AddFromType<KubeMind.Brain.Application.Plugins.KubernetesP
 builder.Services.AddSingleton<KubeMind.Brain.Application.Plugins.PolycheckPlugin>();
 kernelBuilder.Plugins.AddFromType<KubeMind.Brain.Application.Plugins.PolycheckPlugin>();
 
+
+builder.Services.AddVertexAIEmbeddingGenerator(
+    modelId: "text-embedding-004",
+    location: "us-central1",
+    projectId: builder.Configuration["GCP:ProjectId"] ?? throw new InvalidOperationException("GCP:ProjectId is not configured"),
+    bearerTokenProvider: async () =>
+    {
+        var credential = await GoogleCredential.GetApplicationDefaultAsync();
+        if (credential.IsCreateScopedRequired)
+        {
+            credential = credential.CreateScoped("https://www.googleapis.com/auth/cloud-platform");
+        }
+        var token = await credential.UnderlyingCredential.GetAccessTokenForRequestAsync();
+        return token;
+    }
+
+);
+
+
+
+builder.Services.AddQdrantVectorStore("localhost", 6334, https: false, apiKey: null, options: null);
+
+builder.Services.AddScoped<KubeMind.Brain.Application.Services.IEnrichmentService, EnrichmentService>();
+
+builder.Services.AddHostedService<VectorDbInitializer>();
+
+builder.Services.AddSingleton<MemoryBufferChannel>();
+builder.Services.AddSingleton<KubeMind.Brain.Application.Services.IMemoryBuffer>(sp => sp.GetRequiredService<MemoryBufferChannel>());
+builder.Services.AddHostedService<MemoryConsolidationService>();
+
+builder.Services.AddAiService(builder.Configuration);
+
+var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
+if (string.IsNullOrWhiteSpace(redisConnectionString))
+{
+    redisConnectionString = builder.Configuration.GetSection("Redis")["ConnectionString"];
+}
+if (string.IsNullOrWhiteSpace(redisConnectionString))
+{
+    throw new InvalidOperationException("Redis connection string is not configured in ConnectionStrings or Redis section.");
+}
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnectionString));
+builder.Services.AddSingleton(sp => sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase());
+
 var githubToken = builder.Configuration.GetSection("GitHub")["Token"];
 if (string.IsNullOrWhiteSpace(githubToken))
 {
     throw new InvalidOperationException("GitHub:Token is not configured in appsettings.");
 }
 
-builder.Services.AddSingleton<Octokit.GitHubClient>(sp => new Octokit.GitHubClient(new Octokit.ProductHeaderValue("KubeMind-Brain"))
+builder.Services.AddSingleton(sp => new Octokit.GitHubClient(new Octokit.ProductHeaderValue("KubeMind-Brain"))
 {
     Credentials = new Octokit.Credentials(githubToken)
 });
@@ -83,16 +120,11 @@ builder.Services.AddSingleton<KubeMind.Brain.Application.Services.IGitHubService
 builder.Services.AddSingleton<KubeMind.Brain.Application.Plugins.GitOpsPlugin>();
 kernelBuilder.Plugins.AddFromType<KubeMind.Brain.Application.Plugins.GitOpsPlugin>();
 
-// Register the Enrichment Service
-builder.Services.AddSingleton<KubeMind.Brain.Application.Services.IEnrichmentService, EnrichmentService>();
 
-// Register the Notification Service
+
 builder.Services.AddHttpClient<KubeMind.Brain.Application.Services.INotificationService, SlackNotificationService>();
 
-// Register the Deduplication Service
 builder.Services.AddSingleton<KubeMind.Brain.Application.Services.IIncidentDeduplicationService, RedisIncidentDeduplicationService>();
-
-builder.Services.AddAiService(builder.Configuration);
 
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
@@ -100,11 +132,25 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
     });
+
+    serverOptions.ListenAnyIP(5081, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+    });
+
+    serverOptions.ListenAnyIP(7067, listenOptions =>
+    {
+        listenOptions.UseHttps();
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+    });
 });
 
 var app = builder.Build();
 
 app.UseStaticFiles();
+
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.MapGrpcService<IncidentService>();
 app.MapHub<AgentHub>("/agenthub");

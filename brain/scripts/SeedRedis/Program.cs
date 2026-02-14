@@ -3,10 +3,6 @@ using Microsoft.SemanticKernel.Connectors.Redis;
 using Microsoft.SemanticKernel;
 using Microsoft.Extensions.Configuration;
 using StackExchange.Redis;
-using System;
-using System.IO;
-using System.Threading.Tasks;
-using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 

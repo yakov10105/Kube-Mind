@@ -1,11 +1,8 @@
-using System.Text.Json;
 using KubeMind.Brain.Application.Plugins;
 using KubeMind.Brain.Application.Services; // Added this
 using Microsoft.Extensions.Logging;
-using Microsoft.SemanticKernel;
 using Moq;
 // Removed using Octokit; as it's no longer directly used in the test
-using Xunit;
 
 namespace KubeMind.Brain.Tests;
 
