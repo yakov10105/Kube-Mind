@@ -38,11 +38,9 @@ public class MemoryConsolidationService(
                         continue;
                     }
 
-                    // 1. Generate Embedding
                     var embeddingResult = await embeddingGenerator.GenerateAsync([resolution.RawLog], cancellationToken: stoppingToken);
                     var vector = embeddingResult[0].Vector;
 
-                    // 2. Semantic Deduplication
                     var searchOptions = new VectorSearchOptions<IncidentMemory>
                     {
                         VectorProperty = x => x.Embedding
