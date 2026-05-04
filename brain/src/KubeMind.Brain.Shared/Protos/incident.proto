@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package kubemind;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "kube-mind/proto";
 option csharp_namespace = "KubeMind.Proto";
 
@@ -10,23 +12,23 @@ message IncidentContext {
   string incident_id = 1;
   string pod_name = 2;
   string pod_namespace = 3;
-  string failure_reason = 4; // e.g., "OOMKilled", "CrashLoopBackOff"
-  string logs = 5; // Last N lines of logs
-  string pod_manifest_json = 6; // Redacted Pod manifest
-  string deployment_manifest_json = 7; // Redacted Deployment manifest
+  string failure_reason = 4;           // e.g., "OOMKilled", "CrashLoopBackOff"
+  string logs = 5;                     // Last N lines of container logs
+  string pod_manifest_json = 6;        // Redacted Pod manifest (JSON)
+  string deployment_manifest_json = 7; // Redacted Deployment manifest (JSON)
   google.protobuf.Timestamp timestamp = 8;
+  // cluster_id is optional — empty string means Brain uses DEFAULT_CLUSTER_ID setting.
+  // The Go Observer sends "" until it is updated to populate this field.
+  string cluster_id = 9;
 }
 
-// Minimal import for Timestamp
-import "google/protobuf/timestamp.proto";
-
-// The gRPC service for sending incidents.
+// The gRPC service for receiving incidents from Observers.
 service IncidentService {
-  // A client-streaming RPC to send incident data.
+  // Client-streaming RPC: Observer streams one or more IncidentContext messages.
   rpc StreamIncident(stream IncidentContext) returns (StreamIncidentResponse);
 }
 
-// The response message for the StreamIncident RPC.
+// StreamIncidentResponse is returned once the client stream closes.
 message StreamIncidentResponse {
   string status = 1;
 }

@@ -14,8 +14,10 @@ langgraph = "^0.2"
 langchain-core = "^0.3"
 langchain-google-vertexai = "^2.0"
 
-# gRPC
-grpcio = "^1.67"
+# gRPC — pinned to match the version used to generate the bindings in generated/.
+# grpcio-tools embeds a GRPC_GENERATED_VERSION check at import time; mismatches
+# raise RuntimeError. Regenerate with `make proto` after upgrading grpcio.
+grpcio = "^1.80"
 protobuf = "^5.28"
 
 # HTTP server
@@ -55,7 +57,7 @@ pytest-asyncio = "^0.24"
 pytest-mock = "^3.14"
 pytest-cov = "^6.0"
 pytest-benchmark = "^4.0"
-grpcio-tools = "^1.67"
+grpcio-tools = "^1.80"
 ruff = "^0.8"
 mypy = "^1.13"
 
