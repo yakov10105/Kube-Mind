@@ -6,7 +6,8 @@ class Settings(BaseSettings):
 
     # GCP — GOOGLE_APPLICATION_CREDENTIALS is intentionally NOT a Settings field.
     # It is read directly by the google-auth library from the OS environment.
-    gcp_project_id: str = "default-project"
+    # gcp_project_id is required: the service cannot start without a GCP project.
+    gcp_project_id: str
     gcp_location: str = "us-central1"
 
     # LLM

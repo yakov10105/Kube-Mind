@@ -1,27 +1,15 @@
 import asyncio
 import signal
 
-import google.auth
-import google.auth.exceptions
 import structlog
 import uvicorn
 
 from src.config import settings
 from src.observability.logging_config import configure_logging
 from src.observability.tracing import configure_tracing
+from src.utils import validate_gcp_credentials
 
 log = structlog.get_logger()
-
-
-def validate_gcp_credentials() -> None:
-    try:
-        google.auth.default()
-    except google.auth.exceptions.DefaultCredentialsError as e:
-        raise RuntimeError(
-            "GCP Application Default Credentials not found. "
-            "Set GOOGLE_APPLICATION_CREDENTIALS to a service account key path, "
-            "or run 'gcloud auth application-default login' for local dev."
-        ) from e
 
 
 async def main() -> None:
