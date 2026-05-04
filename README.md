@@ -2,9 +2,34 @@
 
 [![Build Status](https://ci.example.com/build/status/badge)](https://ci.example.com/build/status)
 
-Kube-Mind is an AI-driven, two-part system that functions as an autonomous Level 1 Site Reliability Engineer for Kubernetes. It is designed to automatically detect, diagnose, and propose version-controlled fixes for common workload failures, transforming incident response from a manual, reactive process into a proactive, automated workflow.
+Kube-Mind is an AI-driven, two-part system that functions as an autonomous Level 1 Site Reliability Engineer for Kubernetes. It automatically detects, diagnoses, and proposes version-controlled fixes for common workload failures — transforming incident response from a manual, reactive process into a proactive, automated workflow.
 
-## 📖 Table of Contents
+## Brain Refactor: .NET → Python LangGraph
+
+> **Active migration in progress** (`KM-MIGRATE-01`)
+
+The Brain component is being migrated from **.NET 8 + Microsoft Semantic Kernel** to **Python 3.12 + LangGraph + FastAPI**. The Go Observer is **not changed** — its gRPC contract, Protobuf definitions, and Helm charts remain identical. Only the `grpc.serverAddress` Helm value will be updated to point at the new Python service.
+
+| Layer | Before | After |
+|---|---|---|
+| Runtime | .NET 8 / ASP.NET Core | Python 3.12 + asyncio |
+| AI Orchestration | Microsoft Semantic Kernel v1.70 | LangGraph 0.2.x |
+| LLM | Gemini 2.5-pro (SK Google connector) | Gemini 2.5-pro (`langchain-google-vertexai`) |
+| Embeddings | Vertex AI `text-embedding-004` (SK) | Vertex AI `text-embedding-004` (LangChain) |
+| gRPC Server | Grpc.AspNetCore | `grpcio` + generated stubs |
+| HTTP Server | ASP.NET Core | FastAPI + Uvicorn |
+| Real-time streaming | SignalR (WebSocket) | Server-Sent Events (`sse-starlette`) |
+| Vector DB client | SK Qdrant connector | `qdrant-client` (async) |
+| Redis client | StackExchange.Redis | `redis-py` (async) |
+| GitHub | Octokit.NET | PyGithub |
+| Logging | Serilog | structlog (JSON) |
+| Observability | OpenTelemetry .NET SDK | `opentelemetry-sdk` + FastAPI instrumentation |
+
+The legacy `.NET` Brain lives in `/brain` and remains functional during the cutover period. All new development happens in `/brain-python`.
+
+---
+
+## Table of Contents
 
 - [Core Concepts](#-core-concepts)
 - [Architectural Overview](#-architectural-overview)
@@ -16,251 +41,286 @@ Kube-Mind is an AI-driven, two-part system that functions as an autonomous Level
 - [Project Structure](#-project-structure)
 - [Contributing](#-contributing)
 
-## ✨ Core Concepts
+## Core Concepts
 
-The Kube-Mind platform is composed of two primary microservices that work in concert:
+The platform is composed of two primary microservices that work in concert:
 
-1.  **The Observer (Go):** A lightweight, read-only Kubernetes controller that resides within your cluster. It continuously watches for workload failures (e.g., `CrashLoopBackOff`, `OOMKilled`), harvests a rich set of diagnostic data (logs, manifests, events), redacts sensitive information, and securely streams an `IncidentContext` payload to the Brain.
+1. **The Observer (Go):** A lightweight, read-only Kubernetes controller that resides within your cluster. It continuously watches for workload failures (`CrashLoopBackOff`, `OOMKilled`, etc.), harvests diagnostic data (logs, manifests, events), redacts sensitive information, and streams an `IncidentContext` payload to the Brain via gRPC.
 
-2.  **The Brain (.NET):** A centralized AI orchestration service that acts as the cognitive core. It ingests data from Observers, uses **Microsoft Semantic Kernel** to reason about failures, queries a Redis vector database for historical context, and formulates a GitOps-native fix. Its primary output is a merge-ready **Pull Request** sent to a designated code repository.
+2. **The Brain (Python):** A centralized AI orchestration service. It ingests incidents from the Observer, runs a LangGraph agent powered by Gemini to diagnose the failure, validates any proposed fix through a safety gate, and opens a merge-ready GitHub Pull Request. Live progress is streamed to a browser UI via Server-Sent Events.
 
-## 🏗️ Architectural Overview
+## Architectural Overview
 
-The entire system is designed around a principle of least privilege and uncompromising safety. The Observer has read-only access to the cluster, and the Brain **never** has direct write-access. All proposed changes must go through a standard, human-in-the-loop GitOps Pull Request workflow.
+The system is built around a principle of least privilege and uncompromising safety. The Observer has read-only cluster access. The Brain **never** writes to the cluster directly — all proposed changes go through a GitOps Pull Request workflow requiring human approval.
 
 ### End-to-End System Flow
-
-This diagram illustrates the complete flow, from failure detection in the Kubernetes cluster to a proposed fix in a Git repository.
 
 ```mermaid
 sequenceDiagram
     participant K8s API Server
     participant Observer (Go Controller)
-    participant Brain (.NET gRPC Service)
-    participant Cognitive Loop (Brain Internals)
+    participant Brain (Python / LangGraph)
+    participant Cognitive Loop (LangGraph Graph)
     participant Git Repository (GitHub)
 
     rect rgb(230, 240, 255)
         note over K8s API Server, Observer (Go Controller): In-Cluster: The Observer
         K8s API Server->>Observer (Go Controller): Watch Notification (Pod Failed)
-        Observer (Go Controller)->>Observer (Go Controller): Reconcile(Request)
-        Observer (GoController)->>K8s API Server: Get Pod Details
-        Observer (Go Controller)->>K8s API Server: Get Pod Logs
-        Observer (Go Controller)->>K8s API Server: Get Related Events
+        Observer (Go Controller)->>K8s API Server: Get Pod Details + Logs + Events
         Observer (Go Controller)->>Observer (Go Controller): Harvest & Redact Data
-        Observer (Go Controller)-->>Brain (.NET gRPC Service): StreamIncident(IncidentContext)
+        Observer (Go Controller)-->>Brain (Python / LangGraph): StreamIncident(IncidentContext)
     end
 
     rect rgb(230, 255, 230)
-        note over Brain (.NET gRPC Service), Git Repository (GitHub): Off-Cluster: The Brain & GitOps
-        Brain (.NET gRPC Service)->>Cognitive Loop (Brain Internals): Start Analysis
-        Cognitive Loop (Brain Internals)-->>Brain (.NET gRPC Service): Analysis Complete
-        Brain (.NET gRPC Service)->>Git Repository (GitHub): Create Pull Request
-        Git Repository (GitHub)-->>Brain (.NET gRPC Service): PR URL
+        note over Brain (Python / LangGraph), Git Repository (GitHub): Off-Cluster: The Brain & GitOps
+        Brain (Python / LangGraph)->>Cognitive Loop (LangGraph Graph): Run graph
+        Cognitive Loop (LangGraph Graph)-->>Brain (Python / LangGraph): Outcome + PR URL
+        Brain (Python / LangGraph)->>Git Repository (GitHub): Pull Request (branch + commit)
+        Git Repository (GitHub)-->>Brain (Python / LangGraph): PR URL
     end
 ```
 
-### The Cognitive Loop
+## The Cognitive Loop
 
-The Brain operates on a continuous cognitive loop for each incident it receives:
+The Brain runs a LangGraph directed graph for every non-duplicate incident:
 
 ```mermaid
 sequenceDiagram
     participant Observer
-    participant Brain (gRPC Server)
-    participant Redis (Vector DB)
-    participant Semantic Kernel (AI Orchestrator)
-    participant LLM
-    participant Tool Plugins
-    participant Git Repository (GitHub)
-    participant UI (SignalR)
-    participant Slack/Teams
+    participant gRPC Server
+    participant Redis
+    participant Qdrant (Vector DB)
+    participant LangGraph Agent
+    participant Gemini (LLM)
+    participant Tools
+    participant GitHub
+    participant SSE (Browser)
+    participant Slack
 
-    Observer->>Brain (gRPC Server): Stream(IncidentContext)
-    Brain (gRPC Server)->>Redis (Vector DB): IsDuplicate(IncidentId)?
-    alt Incident is NOT duplicate
-        Brain (gRPC Server)->>UI (SignalR): Stream("New Incident Received")
-        Brain (gRPC Server)->>Redis (Vector DB): Search for similar incidents/runbooks
-        Brain (gRPC Server)->>Semantic Kernel (AI Orchestrator): RunAnalysis(EnrichedContext)
+    Observer->>gRPC Server: StreamIncident(IncidentContext)
+    gRPC Server->>Redis: is_duplicate(stable_sha256_key)?
+    alt Not a duplicate
+        gRPC Server->>Qdrant (Vector DB): Embed logs → search similar incidents
+        Qdrant (Vector DB)-->>gRPC Server: Historical context (top-3)
+        gRPC Server->>LangGraph Agent: Run(enriched SOP goal)
 
-        Semantic Kernel (AI Orchestrator)->>LLM (GPT-4o): Create Plan & Hypothesis
-        LLM (GPT-4o)-->>Semantic Kernel (AI Orchestrator): Proposed Plan
-        Semantic Kernel (AI Orchestrator)->>UI (SignalR): Stream("Plan: ...")
+        LangGraph Agent->>Gemini (LLM): Diagnose + plan
+        Gemini (LLM)-->>LangGraph Agent: Tool calls
 
-        loop Plan Execution (via Function Invocation Filter)
-            Semantic Kernel (AI Orchestrator)->>Tool Plugins: ExecuteNextStep()
-            Tool Plugins-->>Semantic Kernel (AI Orchestrator): StepResult
-            Semantic Kernel (AI Orchestrator)->>UI (SignalR): Stream("Tool Output: ...")
+        loop Tool execution
+            LangGraph Agent->>Tools: get_pod_status / analyze_incident / is_code_change_safe
+            Tools-->>LangGraph Agent: Result
+            LangGraph Agent->>SSE (Browser): Stream progress event
         end
 
-        Semantic Kernel (AI Orchestrator)->>LLM (GPT-4o): Formulate Remediation
-        LLM (GPT-4o)-->>Semantic Kernel (AI Orchestrator): Proposed Code Change
+        LangGraph Agent->>Gemini (LLM): Formulate fix
+        Gemini (LLM)-->>LangGraph Agent: Proposed YAML change
 
-        Semantic Kernel (AI Orchestrator)->>Tool Plugins: PolycheckPlugin.IsCodeChangeSafe(ProposedCodeChange)
-        Tool Plugins-->>Semantic Kernel (AI Orchestrator): Safety Assessment ("YES" / "NO")
+        LangGraph Agent->>Tools: is_code_change_safe(proposed_change)
+        Tools-->>LangGraph Agent: "YES" / "NO"
 
-        alt Safety Assessment is "YES"
-            Semantic Kernel (AI Orchestrator)->>Tool Plugins: GitOpsPlugin.CreateFixPullRequest(Details)
-            Tool Plugins->>Git Repository (GitHub): Create Branch, Commit, Open PR
-            Git Repository (GitHub)-->>Tool Plugins: PR URL
-            Tool Plugins->>UI (SignalR): Stream("PR Created: url...")
-            Tool Plugins->>Slack/Teams: Send Notification("PR Ready for Review")
-        else Safety Assessment is "NO"
-            Semantic Kernel (AI Orchestrator)->>UI (SignalR): Stream("🚫 Remediation Blocked: Safety check failed.")
-            Semantic Kernel (AI Orchestrator)->>Slack/Teams: Send Alert("Automated remediation failed safety check")
+        alt Safety check = YES
+            LangGraph Agent->>Tools: create_fix_pull_request(...)
+            Tools->>GitHub: Create branch → commit → open PR
+            GitHub-->>Tools: PR URL
+            Tools->>SSE (Browser): Stream("PR created: url")
+            Tools->>Slack: Notify("PR ready for review")
+        else Safety check = NO
+            LangGraph Agent->>SSE (Browser): Stream("Remediation blocked")
+            LangGraph Agent->>Slack: Alert("Safety check failed")
         end
-    else Incident is duplicate
-        Brain (gRPC Server)->>UI (SignalR): Stream("Incident is a duplicate, skipping.")
+
+        LangGraph Agent->>Qdrant (Vector DB): Write resolution to memory (async)
+    else Duplicate
+        gRPC Server->>SSE (Browser): Stream("Duplicate incident, skipping")
     end
-    Brain (gRPC Server)-->>Observer: StreamIncidentResponse
-
+    gRPC Server-->>Observer: StreamIncidentResponse
 ```
 
-1.  **Ingest & Enrich:** A gRPC server receives the `IncidentContext`. It immediately queries a Redis vector database for semantically similar past incidents and relevant runbook snippets to enrich the data.
-2.  **Reason & Plan:** The enriched context is passed to the Semantic Kernel, which uses an LLM to form a hypothesis and generate a step-by-step plan to verify it.
-3.  **Execute & Gather:** The Kernel invokes the necessary C# functions (Plugins) to execute the plan, gathering more evidence until a diagnosis is confirmed.
-4.  **Remediate & Propose:** Once the diagnosis is confirmed, the Kernel selects a remediation strategy and invokes the `GitOpsPlugin` to create a new branch, programmatically apply a fix (e.g., updating a Helm `values.yaml`), and open a Pull Request with a detailed summary.
-5.  **Report & Stream:** Every step of the AI's "thought process"—the plan, each tool invocation, and the final conclusion—is streamed in real-time to a web UI via SignalR.
+### Graph Nodes
 
-## 🚀 Getting Started
+| Node | Responsibility |
+|---|---|
+| `deduplicate` | Redis `SET NX` with 5-min TTL — skips already-processing incidents |
+| `enrich` | Vertex AI embed → Qdrant cosine search → inject top-3 past resolutions as context |
+| `agent` | Gemini + SOP Jinja2 prompt; emits tool calls |
+| `tools` | Executes tool calls; loops back to `agent` until no more calls |
+| `route` | Reads `safety_result`; branches to `write_memory` or `safety_blocked` |
+| `write_memory` | Enqueues resolution to background Qdrant writer |
+| `safety_blocked` | Fires Slack alert; sets `outcome = "blocked"` |
 
-Follow these steps to get the Kube-Mind Brain running locally.
+### Tools Available to the Agent
+
+| Tool | What it does |
+|---|---|
+| `get_pod_status` | Live Kubernetes API query — returns phase, conditions, restart count |
+| `analyze_incident` | Secondary Gemini call with diagnostics SOP — returns `{rootCause, confidence, recommendedAction}` |
+| `is_code_change_safe` | Safety gate — Gemini evaluates whether a YAML change is structural (NO) or value-only (YES) |
+| `create_fix_pull_request` | GitHub: new branch → commit fix file → open PR → Slack notification |
+
+---
+
+## Getting Started
 
 ### Prerequisites
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- [Go](https://go.dev/doc/install)
-- [Docker](https://www.docker.com/products/docker-desktop/) (with Docker Compose)
-- [Redis Stack](https://redis.io/docs/stack/) (for the Vector DB)
-- `kubectl`
-- A configured Kubernetes cluster (e.g., `kind`, `minikube`, or Docker Desktop's cluster)
+- **Python 3.12+**
+- **Go 1.22+** (Observer only)
+- **Docker + Docker Compose**
+- **Redis** (deduplication, 5-min TTL)
+- **Qdrant** (vector memory, port 6334)
+- **GCP project** with Vertex AI API enabled
+- `kubectl` + a configured Kubernetes cluster (kind, minikube, or Docker Desktop)
 
 ### Configuration
 
-The Brain service requires several configuration values to be set up.
+1. Navigate to the Python Brain:
+   ```bash
+   cd brain-python
+   ```
 
-1.  **Navigate to the API project:**
-    ```bash
-    cd brain/src/KubeMind.Brain.Api
-    ```
+2. Copy the example environment file:
+   ```bash
+   cp .env.example .env
+   ```
 
-2.  **Initialize User Secrets:**
-    This is the recommended way to store sensitive information for local development.
-    ```bash
-    dotnet user-secrets init
-    ```
+3. Set the required and optional values in `.env`:
 
-3.  **Set Secrets:**
-    You will need to provide credentials for the AI service and GitHub.
-    ```bash
-    dotnet user-secrets set "AIService:ApiKey" "YOUR_OPENAI_OR_AZURE_API_KEY"
-    dotnet user-secrets set "GitHub:Token" "YOUR_GITHUB_PAT"
-    ```
+   ```dotenv
+   # Required
+   GCP_PROJECT_ID=your-gcp-project-id
 
-4.  **Configure `appsettings.Development.json`:**
-    Review and update `brain/src/KubeMind.Brain.Api/appsettings.Development.json` to point to your Redis instance and configure your preferred AI service (`OpenAI` or `AzureOpenAI`).
+   # Optional — defaults shown
+   GCP_LOCATION=us-central1
+   GEMINI_MODEL_ID=gemini-2.5-pro
+   REDIS_URL=redis://localhost:6379
+   QDRANT_HOST=localhost
+   QDRANT_PORT=6334
+   GITHUB_TOKEN=your-github-pat
+   GITHUB_DEFAULT_REPO_OWNER=your-org
+   GITHUB_DEFAULT_REPO_NAME=your-infra-repo
+   SLACK_WEBHOOK_URL=https://hooks.slack.com/...
+   GRPC_PORT=50051
+   HTTP_PORT=5081
+   LOG_LEVEL=INFO
+   ```
+
+4. Authenticate with GCP (Application Default Credentials):
+   ```bash
+   gcloud auth application-default login
+   ```
 
 ### Running the Platform
 
-1.  **Start Redis:**
-    Ensure your Redis Stack instance is running. If using Docker:
-    ```bash
-    docker run -d --name redis-stack -p 6379:6379 -p 8001:8001 redis/redis-stack:latest
-    ```
+1. **Start infrastructure dependencies:**
+   ```bash
+   docker run -d --name redis -p 6379:6379 redis:7
+   docker run -d --name qdrant -p 6334:6334 qdrant/qdrant
+   ```
 
-2.  **Generate gRPC Assets:**
-    From the root of the repository, run the generation script. This compiles the `.proto` definitions into C# and Go code.
-    ```bash
-    ./scripts/generate-proto.sh
-    ```
+2. **Install Python dependencies:**
+   ```bash
+   cd brain-python
+   pip install poetry
+   poetry install
+   ```
 
-3.  **Seed the Redis Vector Database:**
-    Populate Redis with some sample runbooks and past incidents for the AI to learn from.
-    ```bash
-    cd brain/scripts/SeedRedis
-    dotnet run
-    cd ../../.. 
-    ```
+3. **Generate gRPC bindings** (only needed after `.proto` changes):
+   ```bash
+   make proto
+   ```
 
-4.  **Run the Brain (.NET Service):**
-    ```bash
-    cd brain
-    dotnet run --project src/KubeMind.Brain.Api
-    ```
-    The Brain API should now be running, typically on `https://localhost:7138`.
+4. **Run the Brain:**
+   ```bash
+   make run
+   # or directly:
+   poetry run python -m src.main
+   ```
 
-5.  **View the Real-time Stream:**
-    Open your web browser and navigate to the running application's root URL. This will load a simple HTML page that connects to the SignalR hub and displays a live feed of the agent's thought process.
+   The Brain starts two servers:
+   - gRPC on port `50051` (receives incidents from the Observer)
+   - HTTP on port `5081` (SSE stream + health check + UI)
 
-6.  **(TODO) Run the Observer (Go Service):**
-    Instructions for building and deploying the Go-based Observer will be added soon. Once deployed to your cluster, it will begin detecting failures and streaming them to the running Brain service.
+5. **View the live event stream:**
+   Open `http://localhost:5081/ui` in a browser, enter an `incident_id`, and click **Connect** to watch the agent work in real time.
 
-## 📂 Project Structure
+6. **Run tests:**
+   ```bash
+   make test-unit        # unit tests only (no external services needed)
+   make test             # full suite including integration tests
+   ```
 
+7. **Deploy the Observer** (Go service):
+   ```bash
+   cd observer
+   # See observer/README.md for cluster deployment instructions
+   ```
 
+---
 
-The monorepo is organized to keep the two main services and their shared components distinct but easy to manage.
-
-
+## Project Structure
 
 ```
-
 /
-
-├── /brain                # .NET "Brain" Service
-
-│   ├── src/              # Source code for API, Application, Infrastructure layers
-
-│   └── tests/            # Unit and integration tests
-
-├── /deploy               # Helm charts and other deployment manifests
-
-├── /docs                 # Product Requirements Documents (PRDs)
-
-├── /observer             # Go "Observer" Service
-
-│   ├── internal/         # Internal controller and business logic
-
-│   └── cmd/              # Main application entry point
-
-├── /proto                # Shared gRPC/Protobuf definitions
-
-└── /scripts              # Utility and code-generation scripts
-
+├── /brain                # Legacy .NET Brain (Semantic Kernel) — cutover pending
+│   ├── src/              # ASP.NET Core source
+│   └── tests/            # .NET unit + integration tests
+│
+├── /brain-python         # Active Brain — Python + LangGraph (KM-MIGRATE-01)
+│   ├── src/
+│   │   ├── main.py                    # Entrypoint: boots gRPC + HTTP servers
+│   │   ├── config.py                  # Pydantic Settings (all env-var config)
+│   │   ├── utils.py                   # GCP credential validation
+│   │   ├── grpc_server.py             # gRPC IncidentService implementation
+│   │   ├── http_server.py             # FastAPI: /healthz, /events/{id}, /ui
+│   │   ├── graph/
+│   │   │   ├── state.py               # IncidentGraphState TypedDict
+│   │   │   ├── graph.py               # Compiled LangGraph StateGraph
+│   │   │   └── nodes.py               # deduplicate, enrich, write_memory, safety_blocked
+│   │   ├── tools/
+│   │   │   ├── kubernetes_tool.py     # get_pod_status
+│   │   │   ├── diagnostics_tool.py    # analyze_incident
+│   │   │   ├── polycheck_tool.py      # is_code_change_safe
+│   │   │   └── gitops_tool.py         # create_fix_pull_request
+│   │   ├── services/
+│   │   │   ├── deduplication.py       # Redis SET NX dedup
+│   │   │   ├── enrichment.py          # Vertex AI embed → Qdrant search
+│   │   │   ├── memory_consolidation.py# Background Qdrant write-behind worker
+│   │   │   ├── event_bus.py           # Per-incident asyncio queue (→ SSE)
+│   │   │   ├── github_service.py      # PyGithub: branch + commit + PR
+│   │   │   └── slack_service.py       # Slack webhook notifications
+│   │   └── observability/
+│   │       ├── logging_config.py      # structlog JSON configuration
+│   │       └── tracing.py             # OpenTelemetry + OTLP exporter
+│   ├── tests/
+│   │   ├── unit/                      # Hermetic unit tests (no external services)
+│   │   └── integration/               # Full-stack tests (requires Redis + Qdrant)
+│   ├── generated/                     # Auto-generated gRPC stubs (do not edit)
+│   ├── prompts/sop.j2                 # Jinja2 SOP prompt template
+│   ├── static/index.html              # SSE live event viewer UI
+│   ├── pyproject.toml                 # Poetry dependencies
+│   └── Makefile                       # proto / install / lint / test / run targets
+│
+├── /observer             # Go Observer (unchanged by this migration)
+│   ├── internal/         # Controller logic, harvesting, redaction
+│   └── cmd/              # Main entry point
+│
+├── /deploy
+│   ├── /helm             # Helm charts for Observer and Brain
+│   └── /tests            # RBAC policy CI tests
+│
+├── /docs                 # PRDs and architecture documents
+│   ├── langgraph-migration-prd.md   # KM-MIGRATE-01 (this refactor)
+│   ├── system-overview-prd.md       # Platform-level requirements
+│   ├── orchestrator-prd.md          # Original .NET Brain PRD (superseded)
+│   └── controller-prd.md            # Observer PRD
+│
+└── /proto                # Shared Protobuf definitions (unchanged)
+    └── incident.proto
 ```
 
+## Contributing
 
+Contributions are welcome. Please open an issue or submit a pull request against `main`. See `docs/CONTRIBUTING.md` for guidelines.
 
-## 📈 Performance Testing
-
-
-
-While full CI/CD integration is outside the scope of this repository, a placeholder script (`scripts/run-performance-tests.sh`) is provided as a starting point for implementing automated performance tests. This script outlines the steps for:
-
-
-
-- Starting the Kube-Mind Brain service.
-
-- Deploying a test Kubernetes cluster (e.g., `kind`).
-
-- Deploying the Kube-Mind Observer to the test cluster.
-
-- Injecting a configurable load of simulated incidents.
-
-- Monitoring and collecting performance metrics.
-
-- Asserting against performance Service Level Objectives (SLOs).
-
-- Generating a performance report.
-
-
-
-It is recommended to integrate such a script into your CI/CD pipeline to continuously monitor the platform's end-to-end performance.
-
-
-
-## 🤝 Contributing
-
-
-
-Contributions are welcome! Please feel free to open an issue or submit a pull request. (A more detailed contribution guide will be added soon).
+For the Brain migration specifically, all work is tracked under PRD `KM-MIGRATE-01` (`docs/langgraph-migration-prd.md`). New Brain features should be implemented in `/brain-python` only.
