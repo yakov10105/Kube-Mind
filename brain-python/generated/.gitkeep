@@ -1,0 +1,3 @@
+# This directory holds auto-generated proto bindings.
+# Run `make proto` (or scripts/generate_proto.sh) to populate it.
+# Generated files are excluded from git via .gitignore.

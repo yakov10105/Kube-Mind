@@ -1,0 +1,77 @@
+[tool.poetry]
+name = "kube-mind-brain"
+version = "1.0.0"
+description = "KubeMind Brain — Python LangGraph AI orchestration service"
+authors = ["Kube-Mind Team"]
+readme = "README.md"
+packages = [{ include = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+
+# LangGraph & LangChain
+langgraph = "^0.2"
+langchain-core = "^0.3"
+langchain-google-vertexai = "^2.0"
+
+# gRPC
+grpcio = "^1.67"
+protobuf = "^5.28"
+
+# HTTP server
+fastapi = "^0.115"
+uvicorn = { extras = ["standard"], version = "^0.32" }
+sse-starlette = "^2.1"
+
+# Templating
+jinja2 = "^3.1"
+
+# External services
+redis = { extras = ["asyncio"], version = "^5.2" }
+qdrant-client = "^1.12"
+PyGithub = "^2.5"
+httpx = "^0.27"
+kubernetes = "^31.0"
+
+# Observability
+opentelemetry-sdk = "^1.27"
+opentelemetry-instrumentation-fastapi = "^0.48"
+opentelemetry-exporter-otlp = "^1.27"
+structlog = "^24.4"
+prometheus-client = "^0.21"
+
+# Config & validation
+pydantic = "^2.9"
+pydantic-settings = "^2.6"
+python-dotenv = "^1.0"
+
+# GCP auth
+google-auth = "^2.35"
+google-cloud-aiplatform = "^1.70"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3"
+pytest-asyncio = "^0.24"
+pytest-mock = "^3.14"
+pytest-cov = "^6.0"
+pytest-benchmark = "^4.0"
+grpcio-tools = "^1.67"
+ruff = "^0.8"
+mypy = "^1.13"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

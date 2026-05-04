@@ -76,8 +76,44 @@ coverage.out
 SESSION_CHANGES.md
 DEPLOYMENT.md
 docs/TESTING.MD
-docs/kube-mind-c205678d57e9.json
-brain/src/KubeMind.Brain.Api/appsettings.Development.json
 brain/src/KubeMind.Brain.Api/appsettings.Development.json
 docs/enrichment.md
 docs/memory-consolidation-prd.md
+
+# Python (brain-python/)
+# ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+# brain-python has its own .gitignore for finer-grained control
+
+# GCP / cloud credentials — NEVER commit service account keys
+# ----------------------------------------------------------------
+# Specific known leaked file (key must be rotated in GCP Console before use)
+docs/kube-mind-c205678d57e9.json
+# Catch-all for any GCP service account key files placed in docs/
+docs/kube-mind-*.json
+# Any .json credential files at the project root
+/credentials.json
+/service-account*.json
+/gcp-key*.json
+
+# Gemini / AI tool configs (not needed in repo)
+# ----------------------------------------------------------------
+.gemini/
+.geminiignore
+GEMINI.md
+
+# Claude tool configs
+# ----------------------------------------------------------------
+.claude/

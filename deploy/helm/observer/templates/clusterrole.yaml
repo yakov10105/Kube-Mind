@@ -5,6 +5,9 @@ metadata:
   labels:
     {{- include "kube-mind-observer.labels" . | nindent 4 }}
 rules:
+# Core Kubernetes resources: READ-ONLY.
+# The Observer never mutates pods, events, or configmaps.
+# All remediation is performed by the Brain via GitHub PRs only.
 - apiGroups:
   - ""
   resources:
@@ -16,6 +19,10 @@ rules:
   - get
   - list
   - watch
+# Leader-election lease: write access is required by controller-runtime to implement
+# the leader-election lock that prevents split-brain when the Observer runs with
+# multiple replicas. This does NOT grant any pod or workload mutation rights.
+# Verified: `kubectl auth can-i create pods --as=...observer-sa` returns "no".
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -23,10 +30,12 @@ rules:
   verbs:
   - get
   - list
-  - update
-  - create
-  - patch
   - watch
+  - create
+  - update
+  - patch
+# Prometheus ServiceMonitor: READ-ONLY — only needed when the Prometheus Operator
+# is installed. Safe to remove if not using kube-prometheus-stack.
 - apiGroups:
   - monitoring.coreos.com
   resources:

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KubeMind Brain — Live Agent Feed</title>
+  <style>
+    body { font-family: monospace; background: #0d1117; color: #c9d1d9; margin: 2rem; }
+    h1   { color: #58a6ff; }
+    #controls { margin-bottom: 1rem; }
+    #controls input { background: #161b22; border: 1px solid #30363d; color: #c9d1d9;
+                      padding: 0.4rem 0.6rem; border-radius: 4px; width: 360px; }
+    #controls button { background: #238636; border: none; color: #fff;
+                       padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; }
+    #log  { background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+            padding: 1rem; height: 70vh; overflow-y: auto; white-space: pre-wrap; }
+    .event { border-bottom: 1px solid #21262d; padding: 0.25rem 0; }
+    .ts    { color: #6e7681; font-size: 0.8rem; margin-right: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h1>KubeMind Brain — Live Agent Feed</h1>
+  <div id="controls">
+    <input id="incident-input" type="text" placeholder="Incident ID (e.g. my-pod-CrashLoopBackOff-...)" />
+    <button onclick="connect()">Connect</button>
+    <button onclick="disconnect()">Disconnect</button>
+  </div>
+  <div id="log"></div>
+
+  <script>
+    let evtSource = null;
+
+    // Auto-connect if incident_id is in the query string
+    const params = new URLSearchParams(window.location.search);
+    const autoId = params.get("incident_id");
+    if (autoId) {
+      document.getElementById("incident-input").value = autoId;
+      connect();
+    }
+
+    function connect() {
+      disconnect();
+      const incidentId = document.getElementById("incident-input").value.trim();
+      if (!incidentId) { appendLine("ERROR: enter an incident ID first."); return; }
+
+      appendLine(`Connecting to /events/${incidentId} ...`);
+      evtSource = new EventSource(`/events/${encodeURIComponent(incidentId)}`);
+
+      evtSource.onmessage = (e) => appendLine(e.data);
+      evtSource.onerror   = ()  => appendLine("Stream closed or connection error.");
+    }
+
+    function disconnect() {
+      if (evtSource) { evtSource.close(); evtSource = null; appendLine("Disconnected."); }
+    }
+
+    function appendLine(text) {
+      const log  = document.getElementById("log");
+      const div  = document.createElement("div");
+      div.className = "event";
+      const ts   = new Date().toISOString();
+      div.innerHTML = `<span class="ts">${ts}</span>${escapeHtml(text)}`;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+  </script>
+</body>
+</html>
